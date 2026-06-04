@@ -12,6 +12,7 @@ interface AppContextValue {
   openExpense: (expense?: Expense | null) => void;
   openPalette: () => void;
   categories: ExpenseCategory[];
+  assets: Asset[];
   currency: string;
 }
 
@@ -62,7 +63,7 @@ export function AppShell({ children, profile, categories, assets }: Props) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ openExpense, openPalette, categories, currency }}>
+    <AppContext.Provider value={{ openExpense, openPalette, categories, assets, currency }}>
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

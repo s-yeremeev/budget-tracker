@@ -54,6 +54,25 @@ export interface Asset {
   updated_at: string;
 }
 
+export interface Goal {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: string;
+  color: string;
+  target_amount: number;
+  current_amount: number;
+  asset_id: string | null;
+  currency: string;
+  target_date: string | null;
+  created_at: string;
+}
+
+// Ціль із підтягнутим активом (для авто-прогресу).
+export type GoalWithAsset = Goal & {
+  asset?: { value: number; currency: string } | null;
+};
+
 export interface Budget {
   id: string;
   user_id: string;
