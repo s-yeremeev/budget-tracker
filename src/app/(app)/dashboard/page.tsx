@@ -31,6 +31,10 @@ import {
   formatMonthUk,
   monthBounds,
   percentChange,
+  nextPaymentDate,
+  daysUntil,
+  formatDateUk,
+  cn,
 } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
@@ -99,6 +103,13 @@ export default async function DashboardPage() {
 
   const insights = buildInsights({ spentThisMonth, prevMonth: monthCmp.previous, topCategory });
   const donutData = byCategory.slice(0, 8).map((c) => ({ name: c.name, value: c.total, color: c.color }));
+
+  // Найближчі платежі по кредитах (з заданим днем платежу)
+  const upcoming = credits
+    .filter((c) => c.payment_day && Number(c.remaining_amount) > 0)
+    .map((c) => ({ c, date: nextPaymentDate(c.payment_day as number) }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(0, 5);
 
   // Метрики (гейтовані)
   const metricCards = [
@@ -273,6 +284,43 @@ export default async function DashboardPage() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* Найближчі платежі */}
+      {show("upcoming") && upcoming.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Найближчі платежі</CardTitle>
+            <Link href="/credits" className="flex items-center gap-0.5 text-sm font-medium text-primary hover:underline">
+              Кредити <ChevronRight className="h-4 w-4" />
+            </Link>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <ul className="divide-y divide-border">
+              {upcoming.map(({ c, date }) => {
+                const left = daysUntil(date);
+                const soon = left <= 5;
+                return (
+                  <li key={c.id} className="flex items-center gap-3 py-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-danger-soft text-danger">
+                      <Icon name="CreditCard" className="h-[18px] w-[18px]" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-fg">{c.name}</p>
+                      <p className="truncate text-xs text-fg-subtle">{c.lender} · {formatDateUk(date)}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-semibold text-fg">{formatCurrency(Number(c.monthly_payment), c.currency)}</p>
+                      <p className={cn("text-xs", soon ? "text-warning" : "text-fg-subtle")}>
+                        {left === 0 ? "сьогодні" : left === 1 ? "завтра" : `через ${left} дн.`}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       {/* Останні витрати */}

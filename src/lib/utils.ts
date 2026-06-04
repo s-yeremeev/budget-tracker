@@ -79,6 +79,24 @@ export function daysInMonth(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 }
 
+/** Наступна дата платежу для заданого дня місяця (>= сьогодні). */
+export function nextPaymentDate(day: number, from: Date = new Date()): Date {
+  const clamp = (yy: number, mm: number) => Math.min(day, new Date(yy, mm + 1, 0).getDate());
+  const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let cand = new Date(today.getFullYear(), today.getMonth(), clamp(today.getFullYear(), today.getMonth()));
+  if (cand < today) {
+    cand = new Date(today.getFullYear(), today.getMonth() + 1, clamp(today.getFullYear(), today.getMonth() + 1));
+  }
+  return cand;
+}
+
+/** Кількість днів до дати (0 = сьогодні). */
+export function daysUntil(date: Date, from: Date = new Date()): number {
+  const a = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const b = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+}
+
 /** Ініціали для аватара. */
 export function initials(name: string | null | undefined): string {
   if (!name) return "?";

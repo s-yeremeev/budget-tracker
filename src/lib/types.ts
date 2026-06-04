@@ -119,6 +119,7 @@ export interface Credit {
   total_amount: number;
   remaining_amount: number;
   monthly_payment: number;
+  payment_day: number | null;
   currency: string;
   created_at: string;
 }

@@ -24,6 +24,7 @@ export function CreditForm({ credit, defaultCurrency = "UAH", onDone }: Props) {
   const [total, setTotal] = useState(credit ? String(credit.total_amount) : "");
   const [remaining, setRemaining] = useState(credit ? String(credit.remaining_amount) : "");
   const [monthly, setMonthly] = useState(credit ? String(credit.monthly_payment) : "");
+  const [paymentDay, setPaymentDay] = useState<string>(credit?.payment_day ? String(credit.payment_day) : "");
   const [currency, setCurrency] = useState(credit?.currency ?? defaultCurrency);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,7 @@ export function CreditForm({ credit, defaultCurrency = "UAH", onDone }: Props) {
       total_amount: t,
       remaining_amount: Math.min(r, t),
       monthly_payment: m,
+      payment_day: paymentDay ? Number(paymentDay) : null,
       currency,
     };
     startTransition(async () => {
@@ -121,6 +123,16 @@ export function CreditForm({ credit, defaultCurrency = "UAH", onDone }: Props) {
             ))}
           </Select>
         </div>
+      </div>
+
+      <div>
+        <Label htmlFor="c-payday">День платежу (необовʼязково)</Label>
+        <Select id="c-payday" value={paymentDay} onChange={(e) => setPaymentDay(e.target.value)}>
+          <option value="">— не вказувати —</option>
+          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>{d} число</option>
+          ))}
+        </Select>
       </div>
 
       {error && (

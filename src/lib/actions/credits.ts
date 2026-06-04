@@ -23,6 +23,7 @@ export interface CreditInput {
   total_amount: number;
   remaining_amount: number;
   monthly_payment: number;
+  payment_day: number | null;
   currency: string;
 }
 
@@ -35,6 +36,7 @@ export async function createCredit(input: CreditInput) {
     total_amount: input.total_amount,
     remaining_amount: input.remaining_amount,
     monthly_payment: input.monthly_payment,
+    payment_day: input.payment_day,
     currency: input.currency,
   });
   if (error) return { error: error.message };
@@ -52,6 +54,7 @@ export async function updateCredit(id: string, input: CreditInput) {
       total_amount: input.total_amount,
       remaining_amount: input.remaining_amount,
       monthly_payment: input.monthly_payment,
+      payment_day: input.payment_day,
       currency: input.currency,
     })
     .eq("id", id);

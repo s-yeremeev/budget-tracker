@@ -149,6 +149,7 @@ create table if not exists public.credits (
   total_amount    numeric(14, 2) not null check (total_amount >= 0),   -- початкова сума
   remaining_amount numeric(14, 2) not null check (remaining_amount >= 0), -- залишок
   monthly_payment numeric(14, 2) not null default 0,      -- щомісячна плата
+  payment_day     int check (payment_day is null or payment_day between 1 and 31), -- день платежу (опц.)
   currency        text not null default 'UAH',
   created_at      timestamptz not null default now()
 );
@@ -166,6 +167,11 @@ alter table public.expenses
 alter table public.expenses
   add column if not exists tags text[] not null default '{}';
 create index if not exists idx_expenses_tags on public.expenses using gin (tags);
+
+-- Необовʼязковий день платежу по кредиту (1–31).
+alter table public.credits
+  add column if not exists payment_day int
+  check (payment_day is null or payment_day between 1 and 31);
 
 -- ---------- Індекси ----------
 create index if not exists idx_expenses_user_date   on public.expenses (user_id, spent_at desc);

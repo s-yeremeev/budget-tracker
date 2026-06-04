@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, CreditCard, CircleCheckBig } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, CircleCheckBig, CalendarClock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { CreditForm } from "@/components/credits/credit-form";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { deleteCredit, addCreditPayment } from "@/lib/actions/credits";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, formatDateUk, nextPaymentDate, daysUntil, cn } from "@/lib/utils";
 import type { Credit } from "@/lib/types";
 
 export function CreditsView({ credits }: { credits: Credit[] }) {
@@ -171,6 +171,17 @@ function CreditCardItem({ credit, onEdit }: { credit: Credit; onEdit: () => void
               </span>
             )}
           </div>
+          {credit.payment_day && !done && (() => {
+            const d = nextPaymentDate(credit.payment_day);
+            const left = daysUntil(d);
+            const soon = left <= 5;
+            return (
+              <p className={cn("mt-1.5 flex items-center gap-1 text-xs font-medium", soon ? "text-warning" : "text-fg-subtle")}>
+                <CalendarClock className="h-3.5 w-3.5" />
+                Платіж {formatDateUk(d)} · {left === 0 ? "сьогодні" : left === 1 ? "завтра" : `через ${left} дн.`}
+              </p>
+            );
+          })()}
         </div>
 
         {/* Запис платежу */}

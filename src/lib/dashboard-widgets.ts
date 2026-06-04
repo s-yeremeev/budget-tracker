@@ -16,6 +16,7 @@ export const DASHBOARD_WIDGETS: WidgetDef[] = [
   { key: "category_donut", label: "Витрати за категоріями", group: "Блоки" },
   { key: "goals", label: "Фінансові цілі", group: "Блоки" },
   { key: "credits", label: "Кредити", group: "Блоки" },
+  { key: "upcoming", label: "Найближчі платежі", group: "Блоки" },
   { key: "recent", label: "Останні витрати", group: "Блоки" },
 ];
 
