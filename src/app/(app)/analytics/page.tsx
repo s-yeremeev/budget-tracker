@@ -11,7 +11,7 @@ export default async function AnalyticsPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("expenses")
-    .select("*, category:expense_categories(*)")
+    .select("*, category:expense_categories!expenses_category_id_fkey(*)")
     .eq("user_id", userId)
     .order("spent_at", { ascending: false });
 

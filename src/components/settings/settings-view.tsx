@@ -40,7 +40,7 @@ export function SettingsView({ profile }: { profile: Profile | null }) {
       const supabase = createClient();
       const { data } = await supabase
         .from("expenses")
-        .select("spent_at, amount, currency, comment, category:expense_categories(name)")
+        .select("spent_at, amount, currency, comment, category:expense_categories!expenses_category_id_fkey(name)")
         .order("spent_at", { ascending: false });
 
       const rows = [["Дата", "Категорія", "Сума", "Валюта", "Коментар"]];
