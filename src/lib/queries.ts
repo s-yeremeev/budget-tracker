@@ -146,4 +146,14 @@ export async function getMonthBudgetTotal(userId: string, ref: Date) {
   return (data ?? []).reduce((s, b) => s + Number(b.amount), 0);
 }
 
+/** Сума залишків за всіма кредитами (загальний борг). */
+export async function getCreditsTotal(userId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("credits")
+    .select("remaining_amount")
+    .eq("user_id", userId);
+  return (data ?? []).reduce((s, c) => s + Number(c.remaining_amount), 0);
+}
+
 export { monthBounds, toISODate };

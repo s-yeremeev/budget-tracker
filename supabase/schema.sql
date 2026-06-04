@@ -107,6 +107,19 @@ create table if not exists public.goals (
   created_at     timestamptz not null default now()
 );
 
+-- Кредити / зобовʼязання
+create table if not exists public.credits (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users (id) on delete cascade,
+  lender          text not null,                          -- де кредит (банк/кредитор)
+  name            text not null,                          -- що за кредит
+  total_amount    numeric(14, 2) not null check (total_amount >= 0),   -- початкова сума
+  remaining_amount numeric(14, 2) not null check (remaining_amount >= 0), -- залишок
+  monthly_payment numeric(14, 2) not null default 0,      -- щомісячна плата
+  currency        text not null default 'UAH',
+  created_at      timestamptz not null default now()
+);
+
 -- Привʼязка витрати до активу, з якого списано кошти (необовʼязкова).
 -- alter ... if not exists — щоб застосувалось і на вже створеній БД.
 alter table public.expenses
@@ -124,6 +137,7 @@ create index if not exists idx_assets_user          on public.assets (user_id);
 create index if not exists idx_snapshots_user_date  on public.net_worth_snapshots (user_id, snapshot_date);
 create index if not exists idx_budgets_user_period  on public.budgets (user_id, period);
 create index if not exists idx_goals_user           on public.goals (user_id);
+create index if not exists idx_credits_user         on public.credits (user_id);
 
 -- ============================================================
 --  Row Level Security — кожен бачить лише свої дані
@@ -136,6 +150,7 @@ alter table public.assets              enable row level security;
 alter table public.net_worth_snapshots enable row level security;
 alter table public.budgets             enable row level security;
 alter table public.goals               enable row level security;
+alter table public.credits             enable row level security;
 
 -- Хелпер для створення політик "власник рядка" без дублювання
 do $$
@@ -144,7 +159,7 @@ declare
 begin
   foreach t in array array[
     'expense_categories', 'expenses',
-    'asset_categories', 'assets', 'net_worth_snapshots', 'budgets', 'goals'
+    'asset_categories', 'assets', 'net_worth_snapshots', 'budgets', 'goals', 'credits'
   ]
   loop
     execute format('drop policy if exists "owner_select" on public.%I;', t);

@@ -15,6 +15,7 @@ import {
   getRecentExpenses,
   getExpenses,
   getMonthBudgetTotal,
+  getCreditsTotal,
   aggregateByCategory,
 } from "@/lib/queries";
 import {
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
   const now = new Date();
   const { start, end } = monthBounds(now);
 
-  const [{ total: netWorth }, series, monthCmp, recent, monthExpenses, budgetTotal] =
+  const [{ total: assetsTotal }, series, monthCmp, recent, monthExpenses, budgetTotal, debtTotal] =
     await Promise.all([
       getAssetsData(userId),
       getNetWorthSeries(userId),
@@ -39,7 +40,11 @@ export default async function DashboardPage() {
       getRecentExpenses(userId, 6),
       getExpenses(userId, start, end),
       getMonthBudgetTotal(userId, now),
+      getCreditsTotal(userId),
     ]);
+
+  // Чистий капітал = активи − залишок боргів
+  const netWorth = assetsTotal - debtTotal;
 
   const byCategory = aggregateByCategory(monthExpenses);
   const topCategory = byCategory[0] ?? null;
@@ -84,7 +89,11 @@ export default async function DashboardPage() {
           iconColor="#6366f1"
           change={nwChange}
           positiveIsGood
-          hint="Сума всіх активів"
+          hint={
+            debtTotal > 0
+              ? `Активи ${formatCurrency(assetsTotal, "UAH", { compact: true })} − борги ${formatCurrency(debtTotal, "UAH", { compact: true })}`
+              : "Сума всіх активів"
+          }
         />
         <StatCard
           label={`Витрати · ${formatMonthUk(now)}`}

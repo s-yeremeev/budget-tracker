@@ -10,5 +10,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/budget", label: "Бюджет", icon: "PiggyBank" },
   { href: "/goals", label: "Цілі", icon: "Target" },
   { href: "/assets", label: "Активи", icon: "Landmark" },
+  { href: "/credits", label: "Кредити", icon: "CreditCard" },
   { href: "/analytics", label: "Аналітика", icon: "ChartPie" },
 ];

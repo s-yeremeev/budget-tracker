@@ -73,6 +73,18 @@ export type GoalWithAsset = Goal & {
   asset?: { value: number; currency: string } | null;
 };
 
+export interface Credit {
+  id: string;
+  user_id: string;
+  lender: string;
+  name: string;
+  total_amount: number;
+  remaining_amount: number;
+  monthly_payment: number;
+  currency: string;
+  created_at: string;
+}
+
 export interface Budget {
   id: string;
   user_id: string;
