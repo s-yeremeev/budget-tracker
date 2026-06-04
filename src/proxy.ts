@@ -9,10 +9,11 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Усі маршрути, окрім статики та зображень:
+     * Усі маршрути, окрім статики, зображень та PWA-файлів:
      * - _next/static, _next/image
-     * - favicon.ico, файли з розширеннями (svg/png/...)
+     * - favicon.ico, manifest.webmanifest, sw.js
+     * - файли з розширеннями (svg/png/...)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
