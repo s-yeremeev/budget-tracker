@@ -74,6 +74,11 @@ function ExpenseRow({ expense, compact }: { expense: ExpenseWithCategory; compac
               {expense.asset.name}
             </span>
           )}
+          {expense.tags?.map((t) => (
+            <span key={t} className="inline-flex shrink-0 items-center rounded-md bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              #{t}
+            </span>
+          ))}
         </p>
       </div>
 

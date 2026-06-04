@@ -6,6 +6,7 @@ import { Plus, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
+import { TagInput } from "@/components/ui/tag-input";
 import { CategoryCreateInline } from "./category-create-inline";
 import { createExpense, updateExpense, type ExpenseInput } from "@/lib/actions/expenses";
 import { CURRENCIES } from "@/lib/constants";
@@ -39,6 +40,7 @@ export function ExpenseForm({ categories, assets = [], expense, defaultCurrency 
   const [currency, setCurrency] = useState(expense?.currency ?? defaultCurrency);
   const [date, setDate] = useState(expense?.spent_at ?? toISODate(new Date()));
   const [comment, setComment] = useState(expense?.comment ?? "");
+  const [tags, setTags] = useState<string[]>(expense?.tags ?? []);
   const [creatingCat, setCreatingCat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +60,7 @@ export function ExpenseForm({ categories, assets = [], expense, defaultCurrency 
       currency,
       spent_at: date,
       comment: comment.trim() || null,
+      tags,
     };
     startTransition(async () => {
       const res = expense
@@ -265,6 +268,12 @@ export function ExpenseForm({ categories, assets = [], expense, defaultCurrency 
           onChange={(e) => setComment(e.target.value)}
           placeholder="Наприклад: продукти на тиждень"
         />
+      </div>
+
+      {/* Теги */}
+      <div>
+        <Label>Теги (необовʼязково)</Label>
+        <TagInput value={tags} onChange={setTags} placeholder="Напр.: Відпустка-2026" />
       </div>
 
       {error && (

@@ -35,6 +35,7 @@ export interface ExpenseInput {
   currency: string;
   spent_at: string;
   comment: string | null;
+  tags: string[];
 }
 
 export async function createExpense(input: ExpenseInput) {
@@ -48,6 +49,7 @@ export async function createExpense(input: ExpenseInput) {
     currency: input.currency,
     spent_at: input.spent_at,
     comment: input.comment,
+    tags: input.tags,
   });
   if (error) return { error: error.message };
 
@@ -80,6 +82,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
       currency: input.currency,
       spent_at: input.spent_at,
       comment: input.comment,
+      tags: input.tags,
     })
     .eq("id", id);
   if (error) return { error: error.message };

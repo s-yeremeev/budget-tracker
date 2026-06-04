@@ -162,6 +162,11 @@ alter table public.expenses
 alter table public.expenses
   add column if not exists subcategory_id uuid references public.expense_categories (id) on delete set null;
 
+-- Теги витрати (наскрізні мітки, напр. «Відпустка-2026»).
+alter table public.expenses
+  add column if not exists tags text[] not null default '{}';
+create index if not exists idx_expenses_tags on public.expenses using gin (tags);
+
 -- ---------- Індекси ----------
 create index if not exists idx_expenses_user_date   on public.expenses (user_id, spent_at desc);
 create index if not exists idx_expenses_asset       on public.expenses (asset_id);

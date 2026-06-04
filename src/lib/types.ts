@@ -31,6 +31,7 @@ export interface Expense {
   currency: string;
   spent_at: string; // YYYY-MM-DD
   comment: string | null;
+  tags: string[];
   created_at: string;
 }
 

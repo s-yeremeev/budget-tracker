@@ -30,7 +30,14 @@ export function ExpensesView({
   const { openExpense, currency: base, rates } = useApp();
   const [period, setPeriod] = useState<Period>("month");
   const [categoryId, setCategoryId] = useState<string>("all");
+  const [tag, setTag] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of expenses) for (const t of e.tags ?? []) set.add(t);
+    return [...set].sort((a, b) => a.localeCompare(b, "uk"));
+  }, [expenses]);
 
   const range = useMemo(() => {
     const now = new Date();
@@ -50,11 +57,12 @@ export function ExpensesView({
     return expenses.filter((e) => {
       if (e.spent_at < range.start || e.spent_at > range.end) return false;
       if (categoryId !== "all" && e.category_id !== categoryId) return false;
+      if (tag !== "all" && !(e.tags ?? []).includes(tag)) return false;
       if (q && !(e.comment ?? "").toLowerCase().includes(q) && !(e.category?.name ?? "").toLowerCase().includes(q))
         return false;
       return true;
     });
-  }, [expenses, range, categoryId, search]);
+  }, [expenses, range, categoryId, tag, search]);
 
   const total = filtered.reduce((s, e) => s + convert(Number(e.amount), e.currency, base, rates), 0);
 
@@ -122,6 +130,16 @@ export function ExpensesView({
               ))}
           </Select>
         </div>
+        {availableTags.length > 0 && (
+          <Select value={tag} onChange={(e) => setTag(e.target.value)} className="sm:w-44">
+            <option value="all">Усі теги</option>
+            {availableTags.map((t) => (
+              <option key={t} value={t}>
+                #{t}
+              </option>
+            ))}
+          </Select>
+        )}
       </div>
 
       {/* Список */}
