@@ -11,7 +11,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-border lg:bg-bg-elevated">
+    <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-border lg:bg-bg-elevated print:!hidden">
       <div className="flex h-16 items-center gap-2.5 px-6">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
           <Wallet className="h-5 w-5" />
@@ -52,7 +52,7 @@ export function Sidebar() {
 export function MobileNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-border bg-bg-elevated/95 backdrop-blur lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-border bg-bg-elevated/95 backdrop-blur lg:hidden print:!hidden">
       {NAV_ITEMS.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(item.href + "/");

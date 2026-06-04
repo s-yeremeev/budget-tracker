@@ -14,4 +14,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/assets", label: "Активи", icon: "Landmark" },
   { href: "/credits", label: "Кредити", icon: "CreditCard" },
   { href: "/analytics", label: "Аналітика", icon: "ChartPie" },
+  { href: "/reports", label: "Звіти", icon: "FileText" },
 ];

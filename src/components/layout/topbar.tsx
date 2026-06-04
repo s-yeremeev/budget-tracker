@@ -22,7 +22,7 @@ export function Topbar({ profile }: { profile: Profile | null }) {
     "Бюджет";
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-bg/80 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-bg/80 px-4 backdrop-blur sm:px-6 lg:px-8 print:!hidden">
       <h1 className="text-lg font-semibold text-fg">{title}</h1>
 
       <div className="flex-1" />
