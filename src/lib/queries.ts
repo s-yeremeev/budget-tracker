@@ -59,7 +59,7 @@ export async function getExpenses(userId: string, start: string, end: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("expenses")
-    .select("*, category:expense_categories(*), asset:assets(name, currency)")
+    .select("*, category:expense_categories!expenses_category_id_fkey(*), asset:assets(name, currency)")
     .eq("user_id", userId)
     .gte("spent_at", start)
     .lte("spent_at", end)
@@ -73,7 +73,7 @@ export async function getRecentExpenses(userId: string, limit = 6) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("expenses")
-    .select("*, category:expense_categories(*), asset:assets(name, currency)")
+    .select("*, category:expense_categories!expenses_category_id_fkey(*), asset:assets(name, currency)")
     .eq("user_id", userId)
     .order("spent_at", { ascending: false })
     .order("created_at", { ascending: false })

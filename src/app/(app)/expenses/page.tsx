@@ -12,7 +12,7 @@ export default async function ExpensesPage() {
   const [{ data: expenses }, { data: categories }] = await Promise.all([
     supabase
       .from("expenses")
-      .select("*, category:expense_categories(*), asset:assets(name, currency)")
+      .select("*, category:expense_categories!expenses_category_id_fkey(*), asset:assets(name, currency)")
       .eq("user_id", userId)
       .order("spent_at", { ascending: false })
       .order("created_at", { ascending: false }),
