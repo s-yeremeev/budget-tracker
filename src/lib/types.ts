@@ -73,6 +73,26 @@ export type GoalWithAsset = Goal & {
   asset?: { value: number; currency: string } | null;
 };
 
+export interface RecurringExpense {
+  id: string;
+  user_id: string;
+  category_id: string | null;
+  asset_id: string | null;
+  name: string;
+  amount: number;
+  currency: string;
+  day_of_month: number;
+  comment: string | null;
+  active: boolean;
+  next_run: string;
+  last_run: string | null;
+  created_at: string;
+}
+
+export type RecurringWithCategory = RecurringExpense & {
+  category?: { name: string; color: string; icon: string } | null;
+};
+
 export interface Income {
   id: string;
   user_id: string;

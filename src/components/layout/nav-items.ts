@@ -8,6 +8,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: "LayoutDashboard" },
   { href: "/expenses", label: "Витрати", icon: "Receipt" },
   { href: "/income", label: "Доходи", icon: "Banknote" },
+  { href: "/recurring", label: "Повторювані", icon: "Repeat" },
   { href: "/budget", label: "Бюджет", icon: "PiggyBank" },
   { href: "/goals", label: "Цілі", icon: "Target" },
   { href: "/assets", label: "Активи", icon: "Landmark" },

@@ -107,6 +107,23 @@ create table if not exists public.goals (
   created_at     timestamptz not null default now()
 );
 
+-- Повторювані витрати (підписки/регулярні платежі)
+create table if not exists public.recurring_expenses (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  category_id  uuid references public.expense_categories (id) on delete set null,
+  asset_id     uuid references public.assets (id) on delete set null,
+  name         text not null,
+  amount       numeric(14, 2) not null check (amount >= 0),
+  currency     text not null default 'UAH',
+  day_of_month int not null check (day_of_month between 1 and 31),
+  comment      text,
+  active       boolean not null default true,
+  next_run     date not null,                  -- наступна дата нарахування
+  last_run     date,                           -- коли востаннє згенеровано
+  created_at   timestamptz not null default now()
+);
+
 -- Доходи
 create table if not exists public.incomes (
   id          uuid primary key default gen_random_uuid(),
@@ -152,6 +169,7 @@ create index if not exists idx_budgets_user_period  on public.budgets (user_id, 
 create index if not exists idx_goals_user           on public.goals (user_id);
 create index if not exists idx_credits_user         on public.credits (user_id);
 create index if not exists idx_incomes_user_date    on public.incomes (user_id, received_at desc);
+create index if not exists idx_recurring_user       on public.recurring_expenses (user_id, active, next_run);
 
 -- ============================================================
 --  Row Level Security — кожен бачить лише свої дані
@@ -166,6 +184,7 @@ alter table public.budgets             enable row level security;
 alter table public.goals               enable row level security;
 alter table public.credits             enable row level security;
 alter table public.incomes             enable row level security;
+alter table public.recurring_expenses  enable row level security;
 
 -- Хелпер для створення політик "власник рядка" без дублювання
 do $$
@@ -174,7 +193,7 @@ declare
 begin
   foreach t in array array[
     'expense_categories', 'expenses',
-    'asset_categories', 'assets', 'net_worth_snapshots', 'budgets', 'goals', 'credits', 'incomes'
+    'asset_categories', 'assets', 'net_worth_snapshots', 'budgets', 'goals', 'credits', 'incomes', 'recurring_expenses'
   ]
   loop
     execute format('drop policy if exists "owner_select" on public.%I;', t);
