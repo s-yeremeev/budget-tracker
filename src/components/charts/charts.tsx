@@ -6,6 +6,8 @@ import {
   Bar,
   BarChart,
   Cell,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -112,6 +114,69 @@ export function DailyBarChart({
         />
         <Bar dataKey="amount" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={28} />
       </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ---------- Динаміка кількох категорій по місяцях (multi-line) ---------- */
+export function MultiLineChart({
+  data,
+  series,
+  currency,
+}: {
+  data: Record<string, number | string>[];
+  series: { key: string; name: string; color: string }[];
+  currency: string;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+        <XAxis dataKey="label" tick={{ fill: AXIS, fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={12} />
+        <YAxis
+          tick={{ fill: AXIS, fontSize: 12 }}
+          axisLine={false}
+          tickLine={false}
+          width={48}
+          tickFormatter={(v) => formatNumber(v, true)}
+        />
+        <Tooltip
+          cursor={{ stroke: GRID }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const rows = [...payload]
+              .filter((p) => Number(p.value) > 0)
+              .sort((a, b) => Number(b.value) - Number(a.value));
+            if (!rows.length) return null;
+            return (
+              <TooltipBox>
+                <p className="mb-1 font-medium text-fg">{label}</p>
+                <div className="space-y-0.5">
+                  {rows.map((p) => (
+                    <p key={p.name} className="flex items-center gap-2 text-fg-muted">
+                      <span className="h-2 w-2 rounded-full" style={{ background: p.color as string }} />
+                      <span className="flex-1">{p.name}</span>
+                      <span className="font-medium text-fg">{formatCurrency(Number(p.value), currency)}</span>
+                    </p>
+                  ))}
+                </div>
+              </TooltipBox>
+            );
+          }}
+        />
+        {series.map((s) => (
+          <Line
+            key={s.key}
+            type="monotone"
+            dataKey={s.key}
+            name={s.name}
+            stroke={s.color}
+            strokeWidth={2.5}
+            dot={false}
+            activeDot={{ r: 4 }}
+            connectNulls
+          />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 }

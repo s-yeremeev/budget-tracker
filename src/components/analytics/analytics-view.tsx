@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
-import { DailyBarChart, CategoryDonut } from "@/components/charts/charts";
+import { DailyBarChart, CategoryDonut, MultiLineChart } from "@/components/charts/charts";
 import { formatCurrency, percentChange, cn } from "@/lib/utils";
 import type { ExpenseWithCategory } from "@/lib/types";
 
@@ -22,11 +22,16 @@ const MONTHS_SHORT = ["Січ", "Лют", "Бер", "Кві", "Тра", "Чер"
 
 export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] }) {
   const [period, setPeriod] = useState<Period>("month");
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = поточний місяць
 
   const { inRange, prevRange, bars, label } = useMemo(
-    () => computePeriod(expenses, period),
-    [expenses, period],
+    () => computePeriod(expenses, period, monthOffset),
+    [expenses, period, monthOffset],
   );
+
+  const trend = useMemo(() => buildMonthlyTrend(expenses, 6), [expenses]);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const visibleSeries = trend.series.filter((s) => !hidden.has(s.key));
 
   const total = inRange.reduce((s, e) => s + Number(e.amount), 0);
   const prevTotal = prevRange.reduce((s, e) => s + Number(e.amount), 0);
@@ -54,13 +59,16 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
 
   return (
     <div className="space-y-6">
-      {/* Перемикач періоду */}
-      <div className="flex items-center justify-between">
+      {/* Перемикач періоду + навігація по місяцях */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-xl border border-border bg-surface p-1">
           {PERIODS.map((p) => (
             <button
               key={p.key}
-              onClick={() => setPeriod(p.key)}
+              onClick={() => {
+                setPeriod(p.key);
+                setMonthOffset(0);
+              }}
               className={cn(
                 "rounded-lg px-4 py-1.5 text-sm font-medium transition-colors",
                 period === p.key ? "bg-primary text-white" : "text-fg-muted hover:text-fg",
@@ -70,6 +78,27 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
             </button>
           ))}
         </div>
+
+        {period === "month" && (
+          <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-surface p-1">
+            <button
+              onClick={() => setMonthOffset((o) => o - 1)}
+              className="rounded-lg p-1.5 text-fg-muted hover:bg-surface-2"
+              aria-label="Попередній місяць"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="min-w-28 text-center text-sm font-medium text-fg">{label}</span>
+            <button
+              onClick={() => setMonthOffset((o) => Math.min(o + 1, 0))}
+              disabled={monthOffset >= 0}
+              className="rounded-lg p-1.5 text-fg-muted hover:bg-surface-2 disabled:opacity-40"
+              aria-label="Наступний місяць"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Підсумок + порівняння */}
@@ -166,12 +195,98 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
           </div>
         </>
       )}
+
+      {/* Категорії за місяцями */}
+      {trend.series.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Категорії за місяцями</CardTitle>
+            <span className="text-xs text-fg-subtle">останні 6 місяців</span>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Перемикачі категорій */}
+            <div className="flex flex-wrap gap-2">
+              {trend.series.map((s) => {
+                const off = hidden.has(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() =>
+                      setHidden((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(s.key)) next.delete(s.key);
+                        else next.add(s.key);
+                        return next;
+                      })
+                    }
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all",
+                      off ? "border-border text-fg-subtle opacity-60" : "border-border-strong text-fg",
+                    )}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: off ? "var(--fg-subtle)" : s.color }} />
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {visibleSeries.length > 0 ? (
+              <MultiLineChart data={trend.data} series={visibleSeries} currency="UAH" />
+            ) : (
+              <p className="py-10 text-center text-sm text-fg-subtle">Оберіть хоча б одну категорію</p>
+            )}
+
+            {/* Таблиця місяць × категорія */}
+            <div className="-mx-2 overflow-x-auto px-2">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead>
+                  <tr className="text-fg-subtle">
+                    <th className="py-2 pr-3 text-left font-medium">Категорія</th>
+                    {trend.months.map((mm) => (
+                      <th key={mm.label} className="px-2 py-2 text-right font-medium">{mm.label}</th>
+                    ))}
+                    <th className="pl-2 py-2 text-right font-medium">Усього</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trend.topIds.map((id) => {
+                    const meta = trend.catMeta.get(id)!;
+                    const rowTotal = trend.rowTotals.find((r) => r.id === id)?.total ?? 0;
+                    return (
+                      <tr key={id} className="border-t border-border">
+                        <td className="py-2 pr-3">
+                          <span className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+                            <span className="truncate text-fg">{meta.name}</span>
+                          </span>
+                        </td>
+                        {trend.months.map((_, mi) => {
+                          const v = trend.monthData[mi][id] ?? 0;
+                          return (
+                            <td key={mi} className="px-2 py-2 text-right tabular-nums text-fg-muted">
+                              {v ? formatCurrency(v, "UAH", { compact: true }) : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className="pl-2 py-2 text-right font-semibold tabular-nums text-fg">
+                          {formatCurrency(rowTotal, "UAH", { compact: true })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 /** Готує дані для періоду: фільтрує витрати та будує бари. */
-function computePeriod(expenses: ExpenseWithCategory[], period: Period) {
+function computePeriod(expenses: ExpenseWithCategory[], period: Period, monthOffset = 0) {
   const now = new Date();
   const parse = (s: string) => new Date(s + "T00:00:00");
 
@@ -212,9 +327,10 @@ function computePeriod(expenses: ExpenseWithCategory[], period: Period) {
     return { inRange, prevRange, bars, label: String(year) };
   }
 
-  // month
-  const y = now.getFullYear();
-  const m = now.getMonth();
+  // month (з урахуванням зсуву)
+  const ref = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const y = ref.getFullYear();
+  const m = ref.getMonth();
   const days = new Date(y, m + 1, 0).getDate();
   const inRange = expenses.filter((e) => {
     const d = parse(e.spent_at);
@@ -232,5 +348,43 @@ function computePeriod(expenses: ExpenseWithCategory[], period: Period) {
       .reduce((s, e) => s + Number(e.amount), 0);
     return { label: String(day), amount };
   });
-  return { inRange, prevRange, bars, label: MONTHS_SHORT[m] };
+  return { inRange, prevRange, bars, label: `${MONTHS_SHORT[m]} ${y}` };
+}
+
+/** Будує дані тренду витрат по топ-категоріях за останні N місяців. */
+function buildMonthlyTrend(expenses: ExpenseWithCategory[], n: number) {
+  const now = new Date();
+  const parse = (s: string) => new Date(s + "T00:00:00");
+
+  const months = Array.from({ length: n }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1);
+    return { y: d.getFullYear(), m: d.getMonth(), label: `${MONTHS_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}` };
+  });
+
+  const catMeta = new Map<string, { name: string; color: string }>();
+  const monthData: Record<string, number>[] = months.map(() => ({}));
+
+  for (const e of expenses) {
+    const d = parse(e.spent_at);
+    const idx = months.findIndex((mm) => mm.y === d.getFullYear() && mm.m === d.getMonth());
+    if (idx < 0) continue;
+    const id = e.category?.id ?? "none";
+    if (!catMeta.has(id))
+      catMeta.set(id, { name: e.category?.name ?? "Без категорії", color: e.category?.color ?? "#64748b" });
+    monthData[idx][id] = (monthData[idx][id] ?? 0) + Number(e.amount);
+  }
+
+  const totals = new Map<string, number>();
+  for (const md of monthData) for (const k in md) totals.set(k, (totals.get(k) ?? 0) + md[k]);
+
+  const topIds = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id]) => id);
+  const series = topIds.map((id) => ({ key: id, name: catMeta.get(id)!.name, color: catMeta.get(id)!.color }));
+  const data = months.map((mm, idx) => {
+    const row: Record<string, number | string> = { label: mm.label };
+    for (const id of topIds) row[id] = monthData[idx][id] ?? 0;
+    return row;
+  });
+  const rowTotals = topIds.map((id) => ({ id, total: totals.get(id) ?? 0 }));
+
+  return { series, data, months, monthData, topIds, rowTotals, catMeta };
 }
