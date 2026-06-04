@@ -16,8 +16,11 @@ create table if not exists public.profiles (
   id            uuid primary key references auth.users (id) on delete cascade,
   display_name  text,
   base_currency text not null default 'UAH',
+  dashboard_prefs jsonb,                        -- які віджети показувати на дашборді
   created_at    timestamptz not null default now()
 );
+-- Для вже створеної БД:
+alter table public.profiles add column if not exists dashboard_prefs jsonb;
 
 -- Категорії витрат (parent_id != null → це підкатегорія)
 create table if not exists public.expense_categories (

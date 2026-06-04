@@ -7,6 +7,7 @@ export interface Profile {
   id: string;
   display_name: string | null;
   base_currency: string;
+  dashboard_prefs: Record<string, boolean> | null;
   created_at: string;
 }
 

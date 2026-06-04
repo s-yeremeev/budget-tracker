@@ -22,3 +22,18 @@ export async function updateProfile(input: {
   revalidatePath("/", "layout");
   return { error: null };
 }
+
+export async function updateDashboardPrefs(prefs: Record<string, boolean>) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Не авторизовано" };
+  const { error } = await supabase
+    .from("profiles")
+    .update({ dashboard_prefs: prefs })
+    .eq("id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard");
+  return { error: null };
+}

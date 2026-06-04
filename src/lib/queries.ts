@@ -182,6 +182,28 @@ export async function getMonthIncome(userId: string, ref: Date) {
   return { current, previous };
 }
 
+/** Цілі користувача (з підтягнутим активом). */
+export async function getGoals(userId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("goals")
+    .select("*, asset:assets(value, currency)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  return (data as unknown as import("@/lib/types").GoalWithAsset[]) ?? [];
+}
+
+/** Кредити користувача. */
+export async function getCredits(userId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("credits")
+    .select("*")
+    .eq("user_id", userId)
+    .order("remaining_amount", { ascending: false });
+  return (data as unknown as import("@/lib/types").Credit[]) ?? [];
+}
+
 /** Сума залишків за всіма кредитами (загальний борг). */
 export async function getCreditsTotal(userId: string) {
   const supabase = await createClient();
