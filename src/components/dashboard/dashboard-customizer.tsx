@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal, Check } from "lucide-react";
+import { SlidersHorizontal, Check, AlertCircle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { DASHBOARD_WIDGETS, isWidgetOn } from "@/lib/dashboard-widgets";
@@ -13,6 +13,7 @@ export function DashboardCustomizer({ prefs }: { prefs: Record<string, boolean> 
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const [local, setLocal] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     for (const w of DASHBOARD_WIDGETS) init[w.key] = isWidgetOn(prefs, w.key);
@@ -26,8 +27,13 @@ export function DashboardCustomizer({ prefs }: { prefs: Record<string, boolean> 
   }
 
   function save() {
+    setError(null);
     startTransition(async () => {
-      await updateDashboardPrefs(local);
+      const res = await updateDashboardPrefs(local);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
       router.refresh();
       setOpen(false);
     });
@@ -72,6 +78,13 @@ export function DashboardCustomizer({ prefs }: { prefs: Record<string, boolean> 
               </div>
             </div>
           ))}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Не вдалося зберегти: {error}. Можливо, у БД бракує колонки dashboard_prefs.</span>
+            </div>
+          )}
 
           <div className="flex gap-2 pt-1">
             <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)}>Скасувати</Button>
