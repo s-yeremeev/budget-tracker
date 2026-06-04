@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { useTheme } from "@/components/theme/theme-provider";
+import { InstallButton } from "@/components/pwa/install-button";
 import { createClient } from "@/lib/supabase/client";
 import { updateProfile } from "@/lib/actions/profile";
 import { CURRENCIES } from "@/lib/constants";
@@ -129,6 +130,19 @@ export function SettingsView({ profile }: { profile: Profile | null }) {
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Застосунок */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Застосунок</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-fg-muted">
+            Встанови на телефон чи комп'ютер — іконка на головному екрані й повноекранний режим.
+          </p>
+          <InstallButton />
         </CardContent>
       </Card>
 

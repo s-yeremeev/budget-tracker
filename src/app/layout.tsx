@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider, themeScript } from "@/components/theme/theme-provider";
+import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,6 +13,12 @@ export const metadata: Metadata = {
   title: "Бюджет — особистий фінансовий трекер",
   description:
     "Відстежуй активи, витрати, бюджет та цілі. Сучасний особистий бюджет-трекер.",
+  applicationName: "Бюджет",
+  appleWebApp: {
+    capable: true,
+    title: "Бюджет",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
@@ -31,6 +38,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full">
         <ThemeProvider>{children}</ThemeProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
