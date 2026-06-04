@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, Search, Command } from "lucide-react";
+import { Plus, Search, Command, BookOpen } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { useApp } from "@/components/app/app-shell";
@@ -46,6 +47,14 @@ export function Topbar({ profile }: { profile: Profile | null }) {
         <span className="hidden sm:inline">Витрата</span>
       </button>
 
+      <Link
+        href="/help"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        aria-label="Довідка"
+        title="Довідка"
+      >
+        <BookOpen className="h-[18px] w-[18px]" />
+      </Link>
       <ThemeToggle />
       <UserMenu profile={profile} />
     </header>

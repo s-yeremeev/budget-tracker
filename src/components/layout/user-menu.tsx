@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LogOut, Settings, ChevronDown } from "lucide-react";
+import { LogOut, Settings, ChevronDown, BookOpen } from "lucide-react";
 import { initials } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
@@ -43,6 +43,12 @@ export function UserMenu({ profile }: { profile: Profile | null }) {
             className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
           >
             <Settings className="h-4 w-4" /> Налаштування
+          </a>
+          <a
+            href="/help"
+            className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          >
+            <BookOpen className="h-4 w-4" /> Довідка
           </a>
           <form action="/auth/signout" method="post">
             <button
