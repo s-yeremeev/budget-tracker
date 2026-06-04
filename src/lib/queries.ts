@@ -146,6 +146,42 @@ export async function getMonthBudgetTotal(userId: string, ref: Date) {
   return (data ?? []).reduce((s, b) => s + Number(b.amount), 0);
 }
 
+/** Доходи за період [start, end] з підтягнутим активом. */
+export async function getIncomes(userId: string, start: string, end: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("incomes")
+    .select("*, asset:assets(name, currency)")
+    .eq("user_id", userId)
+    .gte("received_at", start)
+    .lte("received_at", end)
+    .order("received_at", { ascending: false })
+    .order("created_at", { ascending: false });
+  return (data as unknown as import("@/lib/types").IncomeWithAsset[]) ?? [];
+}
+
+/** Сума доходів за поточний та попередній місяць. */
+export async function getMonthIncome(userId: string, ref: Date) {
+  const supabase = await createClient();
+  const cur = monthBounds(ref);
+  const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+  const prev = monthBounds(prevRef);
+  const sumBetween = async (start: string, end: string) => {
+    const { data } = await supabase
+      .from("incomes")
+      .select("amount")
+      .eq("user_id", userId)
+      .gte("received_at", start)
+      .lte("received_at", end);
+    return (data ?? []).reduce((s, i) => s + Number(i.amount), 0);
+  };
+  const [current, previous] = await Promise.all([
+    sumBetween(cur.start, cur.end),
+    sumBetween(prev.start, prev.end),
+  ]);
+  return { current, previous };
+}
+
 /** Сума залишків за всіма кредитами (загальний борг). */
 export async function getCreditsTotal(userId: string) {
   const supabase = await createClient();

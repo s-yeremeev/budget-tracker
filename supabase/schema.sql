@@ -107,6 +107,19 @@ create table if not exists public.goals (
   created_at     timestamptz not null default now()
 );
 
+-- Доходи
+create table if not exists public.incomes (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  source      text not null,                          -- джерело (Зарплата, Фріланс…)
+  amount      numeric(14, 2) not null check (amount >= 0),
+  currency    text not null default 'UAH',
+  received_at date not null default current_date,
+  comment     text,
+  asset_id    uuid references public.assets (id) on delete set null, -- зарахувати на актив
+  created_at  timestamptz not null default now()
+);
+
 -- Кредити / зобовʼязання
 create table if not exists public.credits (
   id              uuid primary key default gen_random_uuid(),
@@ -138,6 +151,7 @@ create index if not exists idx_snapshots_user_date  on public.net_worth_snapshot
 create index if not exists idx_budgets_user_period  on public.budgets (user_id, period);
 create index if not exists idx_goals_user           on public.goals (user_id);
 create index if not exists idx_credits_user         on public.credits (user_id);
+create index if not exists idx_incomes_user_date    on public.incomes (user_id, received_at desc);
 
 -- ============================================================
 --  Row Level Security — кожен бачить лише свої дані
@@ -151,6 +165,7 @@ alter table public.net_worth_snapshots enable row level security;
 alter table public.budgets             enable row level security;
 alter table public.goals               enable row level security;
 alter table public.credits             enable row level security;
+alter table public.incomes             enable row level security;
 
 -- Хелпер для створення політик "власник рядка" без дублювання
 do $$
@@ -159,7 +174,7 @@ declare
 begin
   foreach t in array array[
     'expense_categories', 'expenses',
-    'asset_categories', 'assets', 'net_worth_snapshots', 'budgets', 'goals', 'credits'
+    'asset_categories', 'assets', 'net_worth_snapshots', 'budgets', 'goals', 'credits', 'incomes'
   ]
   loop
     execute format('drop policy if exists "owner_select" on public.%I;', t);

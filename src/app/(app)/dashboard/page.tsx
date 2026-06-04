@@ -16,6 +16,7 @@ import {
   getExpenses,
   getMonthBudgetTotal,
   getCreditsTotal,
+  getMonthIncome,
   aggregateByCategory,
 } from "@/lib/queries";
 import {
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
   const now = new Date();
   const { start, end } = monthBounds(now);
 
-  const [{ total: assetsTotal }, series, monthCmp, recent, monthExpenses, budgetTotal, debtTotal] =
+  const [{ total: assetsTotal }, series, monthCmp, recent, monthExpenses, budgetTotal, debtTotal, incomeCmp] =
     await Promise.all([
       getAssetsData(userId),
       getNetWorthSeries(userId),
@@ -41,10 +42,15 @@ export default async function DashboardPage() {
       getExpenses(userId, start, end),
       getMonthBudgetTotal(userId, now),
       getCreditsTotal(userId),
+      getMonthIncome(userId, now),
     ]);
 
   // Чистий капітал = активи − залишок боргів
   const netWorth = assetsTotal - debtTotal;
+  const monthIncome = incomeCmp.current;
+  const balance = monthIncome - monthCmp.current; // дохід − витрати
+  const incomeChange = percentChange(incomeCmp.current, incomeCmp.previous);
+  const savingsRate = monthIncome > 0 ? (balance / monthIncome) * 100 : null;
 
   const byCategory = aggregateByCategory(monthExpenses);
   const topCategory = byCategory[0] ?? null;
@@ -81,7 +87,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Метрики */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label="Чистий капітал"
           value={formatCurrency(netWorth, "UAH", { compact: netWorth > 1_000_000 })}
@@ -96,6 +102,15 @@ export default async function DashboardPage() {
           }
         />
         <StatCard
+          label={`Доходи · ${formatMonthUk(now)}`}
+          value={formatCurrency(monthIncome, "UAH")}
+          icon="Banknote"
+          iconColor="#10b981"
+          change={incomeChange}
+          positiveIsGood
+          hint="Порівняно з минулим місяцем"
+        />
+        <StatCard
           label={`Витрати · ${formatMonthUk(now)}`}
           value={formatCurrency(spentThisMonth, "UAH")}
           icon="Receipt"
@@ -103,6 +118,17 @@ export default async function DashboardPage() {
           change={change}
           positiveIsGood={false}
           hint="Порівняно з минулим місяцем"
+        />
+        <StatCard
+          label="Баланс місяця"
+          value={formatCurrency(balance, "UAH", { sign: true })}
+          icon="Scale"
+          iconColor={balance >= 0 ? "#10b981" : "#ef4444"}
+          hint={
+            savingsRate !== null
+              ? `Норма заощаджень: ${savingsRate.toFixed(0)}%`
+              : "Дохід − витрати за місяць"
+          }
         />
         <StatCard
           label="Найбільша категорія"

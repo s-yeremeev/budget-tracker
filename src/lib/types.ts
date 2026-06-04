@@ -73,6 +73,22 @@ export type GoalWithAsset = Goal & {
   asset?: { value: number; currency: string } | null;
 };
 
+export interface Income {
+  id: string;
+  user_id: string;
+  source: string;
+  amount: number;
+  currency: string;
+  received_at: string;
+  comment: string | null;
+  asset_id: string | null;
+  created_at: string;
+}
+
+export type IncomeWithAsset = Income & {
+  asset?: { name: string; currency: string } | null;
+};
+
 export interface Credit {
   id: string;
   user_id: string;
