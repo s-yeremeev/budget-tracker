@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { DailyBarChart, CategoryDonut, MultiLineChart } from "@/components/charts/charts";
@@ -29,9 +30,28 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
     [expenses, period, monthOffset],
   );
 
-  const trend = useMemo(() => buildMonthlyTrend(expenses, 6), [expenses]);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const visibleSeries = trend.series.filter((s) => !hidden.has(s.key));
+  // Доступні місяці (останні 12) для порівняння
+  const availableMonths = useMemo(() => monthsBack(12), []);
+  const [compareCat, setCompareCat] = useState<string>("all");
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(
+    () => new Set(availableMonths.slice(-6).map((m) => m.key)),
+  );
+
+  // Категорії для випадаючого списку (унікальні з витрат)
+  const catOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; color: string }>();
+    for (const e of expenses) {
+      const id = e.category?.id ?? "none";
+      if (!map.has(id))
+        map.set(id, { id, name: e.category?.name ?? "Без категорії", color: e.category?.color ?? "#64748b" });
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "uk"));
+  }, [expenses]);
+
+  const cmp = useMemo(
+    () => buildComparison(expenses, availableMonths, selectedMonths, compareCat),
+    [expenses, availableMonths, selectedMonths, compareCat],
+  );
 
   const total = inRange.reduce((s, e) => s + Number(e.amount), 0);
   const prevTotal = prevRange.reduce((s, e) => s + Number(e.amount), 0);
@@ -196,91 +216,102 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
         </>
       )}
 
-      {/* Категорії за місяцями */}
-      {trend.series.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Категорії за місяцями</CardTitle>
-            <span className="text-xs text-fg-subtle">останні 6 місяців</span>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Перемикачі категорій */}
-            <div className="flex flex-wrap gap-2">
-              {trend.series.map((s) => {
-                const off = hidden.has(s.key);
+      {/* Порівняння за місяцями */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Порівняння за місяцями</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Контроли */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2">
+              <span className="shrink-0 text-sm text-fg-muted">Категорія:</span>
+              <Select
+                value={compareCat}
+                onChange={(e) => setCompareCat(e.target.value)}
+                className="sm:w-56"
+              >
+                <option value="all">Усі категорії</option>
+                {catOptions.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+            </label>
+          </div>
+
+          {/* Вибір місяців */}
+          <div>
+            <p className="mb-1.5 text-sm text-fg-muted">Місяці для порівняння:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {availableMonths.map((m) => {
+                const on = selectedMonths.has(m.key);
                 return (
                   <button
-                    key={s.key}
+                    key={m.key}
                     onClick={() =>
-                      setHidden((prev) => {
+                      setSelectedMonths((prev) => {
                         const next = new Set(prev);
-                        if (next.has(s.key)) next.delete(s.key);
-                        else next.add(s.key);
+                        if (next.has(m.key)) next.delete(m.key);
+                        else next.add(m.key);
                         return next;
                       })
                     }
                     className={cn(
-                      "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all",
-                      off ? "border-border text-fg-subtle opacity-60" : "border-border-strong text-fg",
+                      "rounded-lg border px-2.5 py-1 text-xs font-medium transition-all",
+                      on
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border text-fg-muted hover:border-border-strong",
                     )}
                   >
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: off ? "var(--fg-subtle)" : s.color }} />
-                    {s.name}
+                    {m.label}
                   </button>
                 );
               })}
             </div>
+          </div>
 
-            {visibleSeries.length > 0 ? (
-              <MultiLineChart data={trend.data} series={visibleSeries} currency="UAH" />
-            ) : (
-              <p className="py-10 text-center text-sm text-fg-subtle">Оберіть хоча б одну категорію</p>
-            )}
+          {cmp.selectedCount === 0 ? (
+            <p className="py-10 text-center text-sm text-fg-subtle">Оберіть хоча б один місяць</p>
+          ) : (
+            <>
+              {/* Статистика */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <MiniStat label="Усього" value={formatCurrency(cmp.sum, "UAH", { compact: cmp.sum > 1_000_000 })} />
+                <MiniStat label="Середнє/міс" value={formatCurrency(cmp.avg, "UAH", { compact: cmp.avg > 1_000_000 })} />
+                <MiniStat label="Найбільший" value={cmp.maxLabel || "—"} sub={cmp.maxAmount ? formatCurrency(cmp.maxAmount, "UAH", { compact: true }) : undefined} />
+                <MiniStat
+                  label="Зміна (перший→останній)"
+                  value={cmp.change === null ? "—" : `${cmp.change > 0 ? "+" : ""}${cmp.change.toFixed(0)}%`}
+                  tone={cmp.change === null ? undefined : cmp.change > 0 ? "danger" : "success"}
+                />
+              </div>
 
-            {/* Таблиця місяць × категорія */}
-            <div className="-mx-2 overflow-x-auto px-2">
-              <table className="w-full min-w-[480px] text-sm">
-                <thead>
-                  <tr className="text-fg-subtle">
-                    <th className="py-2 pr-3 text-left font-medium">Категорія</th>
-                    {trend.months.map((mm) => (
-                      <th key={mm.label} className="px-2 py-2 text-right font-medium">{mm.label}</th>
-                    ))}
-                    <th className="pl-2 py-2 text-right font-medium">Усього</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trend.topIds.map((id) => {
-                    const meta = trend.catMeta.get(id)!;
-                    const rowTotal = trend.rowTotals.find((r) => r.id === id)?.total ?? 0;
-                    return (
-                      <tr key={id} className="border-t border-border">
-                        <td className="py-2 pr-3">
-                          <span className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta.color }} />
-                            <span className="truncate text-fg">{meta.name}</span>
-                          </span>
-                        </td>
-                        {trend.months.map((_, mi) => {
-                          const v = trend.monthData[mi][id] ?? 0;
-                          return (
-                            <td key={mi} className="px-2 py-2 text-right tabular-nums text-fg-muted">
-                              {v ? formatCurrency(v, "UAH", { compact: true }) : "—"}
-                            </td>
-                          );
-                        })}
-                        <td className="pl-2 py-2 text-right font-semibold tabular-nums text-fg">
-                          {formatCurrency(rowTotal, "UAH", { compact: true })}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              {/* Графік */}
+              {compareCat === "all" ? (
+                cmp.series.length > 0 ? (
+                  <MultiLineChart data={cmp.data} series={cmp.series} currency="UAH" />
+                ) : (
+                  <p className="py-10 text-center text-sm text-fg-subtle">Немає витрат за обрані місяці</p>
+                )
+              ) : (
+                <DailyBarChart data={cmp.bars} currency="UAH" />
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "danger" | "success" }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface-2/50 p-3">
+      <p className="text-xs text-fg-subtle">{label}</p>
+      <p className={cn("mt-0.5 truncate text-base font-bold", tone === "danger" ? "text-danger" : tone === "success" ? "text-success" : "text-fg")}>
+        {value}
+      </p>
+      {sub && <p className="text-xs text-fg-muted">{sub}</p>}
     </div>
   );
 }
@@ -351,40 +382,105 @@ function computePeriod(expenses: ExpenseWithCategory[], period: Period, monthOff
   return { inRange, prevRange, bars, label: `${MONTHS_SHORT[m]} ${y}` };
 }
 
-/** Будує дані тренду витрат по топ-категоріях за останні N місяців. */
-function buildMonthlyTrend(expenses: ExpenseWithCategory[], n: number) {
+interface MonthDesc {
+  key: string;
+  y: number;
+  m: number;
+  label: string;
+}
+
+/** Останні n місяців (ascending: найстаріший → найновіший). */
+function monthsBack(n: number): MonthDesc[] {
   const now = new Date();
-  const parse = (s: string) => new Date(s + "T00:00:00");
-
-  const months = Array.from({ length: n }, (_, i) => {
+  return Array.from({ length: n }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1);
-    return { y: d.getFullYear(), m: d.getMonth(), label: `${MONTHS_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}` };
+    return {
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      y: d.getFullYear(),
+      m: d.getMonth(),
+      label: `${MONTHS_SHORT[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`,
+    };
   });
+}
 
-  const catMeta = new Map<string, { name: string; color: string }>();
-  const monthData: Record<string, number>[] = months.map(() => ({}));
+/** Будує дані порівняння за обрані місяці для категорії (або «Усі»). */
+function buildComparison(
+  expenses: ExpenseWithCategory[],
+  available: MonthDesc[],
+  selectedKeys: Set<string>,
+  compareCat: string,
+) {
+  const parse = (s: string) => new Date(s + "T00:00:00");
+  const months = available.filter((m) => selectedKeys.has(m.key)); // ascending
+  const empty = {
+    selectedCount: 0,
+    series: [] as { key: string; name: string; color: string }[],
+    data: [] as Record<string, number | string>[],
+    bars: [] as { label: string; amount: number }[],
+    sum: 0,
+    avg: 0,
+    maxLabel: "",
+    maxAmount: 0,
+    change: null as number | null,
+  };
+  if (months.length === 0) return empty;
 
-  for (const e of expenses) {
-    const d = parse(e.spent_at);
-    const idx = months.findIndex((mm) => mm.y === d.getFullYear() && mm.m === d.getMonth());
-    if (idx < 0) continue;
-    const id = e.category?.id ?? "none";
-    if (!catMeta.has(id))
-      catMeta.set(id, { name: e.category?.name ?? "Без категорії", color: e.category?.color ?? "#64748b" });
-    monthData[idx][id] = (monthData[idx][id] ?? 0) + Number(e.amount);
+  const idxOf = (d: Date) => months.findIndex((mm) => mm.y === d.getFullYear() && mm.m === d.getMonth());
+
+  // Значення по місяцях (для статистики)
+  let values: number[];
+  let series: { key: string; name: string; color: string }[] = [];
+  let data: Record<string, number | string>[] = [];
+  let bars: { label: string; amount: number }[] = [];
+
+  if (compareCat === "all") {
+    const catMeta = new Map<string, { name: string; color: string }>();
+    const monthCat: Record<string, number>[] = months.map(() => ({}));
+    const monthTotal = months.map(() => 0);
+    for (const e of expenses) {
+      const i = idxOf(parse(e.spent_at));
+      if (i < 0) continue;
+      const id = e.category?.id ?? "none";
+      if (!catMeta.has(id))
+        catMeta.set(id, { name: e.category?.name ?? "Без категорії", color: e.category?.color ?? "#64748b" });
+      const amt = Number(e.amount);
+      monthCat[i][id] = (monthCat[i][id] ?? 0) + amt;
+      monthTotal[i] += amt;
+    }
+    const totals = new Map<string, number>();
+    for (const md of monthCat) for (const k in md) totals.set(k, (totals.get(k) ?? 0) + md[k]);
+    const topIds = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id]) => id);
+    series = topIds.map((id) => ({ key: id, name: catMeta.get(id)!.name, color: catMeta.get(id)!.color }));
+    data = months.map((mm, i) => {
+      const row: Record<string, number | string> = { label: mm.label };
+      for (const id of topIds) row[id] = monthCat[i][id] ?? 0;
+      return row;
+    });
+    values = monthTotal;
+  } else {
+    values = months.map(() => 0);
+    for (const e of expenses) {
+      if ((e.category?.id ?? "none") !== compareCat) continue;
+      const i = idxOf(parse(e.spent_at));
+      if (i < 0) continue;
+      values[i] += Number(e.amount);
+    }
+    bars = months.map((mm, i) => ({ label: mm.label, amount: values[i] }));
   }
 
-  const totals = new Map<string, number>();
-  for (const md of monthData) for (const k in md) totals.set(k, (totals.get(k) ?? 0) + md[k]);
-
-  const topIds = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id]) => id);
-  const series = topIds.map((id) => ({ key: id, name: catMeta.get(id)!.name, color: catMeta.get(id)!.color }));
-  const data = months.map((mm, idx) => {
-    const row: Record<string, number | string> = { label: mm.label };
-    for (const id of topIds) row[id] = monthData[idx][id] ?? 0;
-    return row;
+  const sum = values.reduce((s, v) => s + v, 0);
+  const avg = sum / months.length;
+  let maxAmount = -1;
+  let maxLabel = "";
+  months.forEach((mm, i) => {
+    if (values[i] > maxAmount) {
+      maxAmount = values[i];
+      maxLabel = mm.label;
+    }
   });
-  const rowTotals = topIds.map((id) => ({ id, total: totals.get(id) ?? 0 }));
+  const first = values[0];
+  const last = values[values.length - 1];
+  const change = first === 0 ? (last === 0 ? 0 : null) : ((last - first) / Math.abs(first)) * 100;
 
-  return { series, data, months, monthData, topIds, rowTotals, catMeta };
+  return { selectedCount: months.length, series, data, bars, sum, avg, maxLabel, maxAmount: Math.max(maxAmount, 0), change };
 }
