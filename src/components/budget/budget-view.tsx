@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/components/app/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { setBudget, copyBudgetFromPrevMonth } from "@/lib/actions/budgets";
+import { convert } from "@/lib/currency";
 import { formatCurrency, formatMonthUk, monthBounds, cn } from "@/lib/utils";
 
 function periodISO(d: Date) {
@@ -21,7 +22,7 @@ interface Row {
 }
 
 export function BudgetView() {
-  const { categories, currency } = useApp();
+  const { categories, currency, rates } = useApp();
   const supabase = createClient();
   const [ref, setRef] = useState(() => {
     const n = new Date();
@@ -37,25 +38,25 @@ export function BudgetView() {
     setLoading(true);
     const { start, end } = monthBounds(ref);
     const [{ data: budgets }, { data: expenses }] = await Promise.all([
-      supabase.from("budgets").select("category_id, amount").eq("period", period),
+      supabase.from("budgets").select("category_id, amount, currency").eq("period", period),
       supabase
         .from("expenses")
-        .select("category_id, amount")
+        .select("category_id, amount, currency")
         .gte("spent_at", start)
         .lte("spent_at", end),
     ]);
 
     const map: Record<string, Row> = {};
     for (const c of categories) map[c.id] = { spent: 0, planned: 0 };
-    for (const b of (budgets ?? []) as { category_id: string; amount: number }[]) {
-      if (map[b.category_id]) map[b.category_id].planned = Number(b.amount);
+    for (const b of (budgets ?? []) as { category_id: string; amount: number; currency: string }[]) {
+      if (map[b.category_id]) map[b.category_id].planned = convert(Number(b.amount), b.currency, currency, rates);
     }
-    for (const e of (expenses ?? []) as { category_id: string | null; amount: number }[]) {
-      if (e.category_id && map[e.category_id]) map[e.category_id].spent += Number(e.amount);
+    for (const e of (expenses ?? []) as { category_id: string | null; amount: number; currency: string }[]) {
+      if (e.category_id && map[e.category_id]) map[e.category_id].spent += convert(Number(e.amount), e.currency, currency, rates);
     }
     setData(map);
     setLoading(false);
-  }, [supabase, period, ref, categories]);
+  }, [supabase, period, ref, categories, currency, rates]);
 
   useEffect(() => {
     load();

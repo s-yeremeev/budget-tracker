@@ -9,19 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CreditForm } from "@/components/credits/credit-form";
+import { useApp } from "@/components/app/app-shell";
+import { convert } from "@/lib/currency";
 import { deleteCredit, addCreditPayment } from "@/lib/actions/credits";
 import { formatCurrency, cn } from "@/lib/utils";
 import type { Credit } from "@/lib/types";
 
 export function CreditsView({ credits }: { credits: Credit[] }) {
+  const { currency: base, rates } = useApp();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Credit | null>(null);
 
-  const totalDebt = credits.reduce((s, c) => s + Number(c.remaining_amount), 0);
+  const totalDebt = credits.reduce((s, c) => s + convert(Number(c.remaining_amount), c.currency, base, rates), 0);
   const totalMonthly = credits
     .filter((c) => Number(c.remaining_amount) > 0)
-    .reduce((s, c) => s + Number(c.monthly_payment), 0);
-  const currency = credits[0]?.currency ?? "UAH";
+    .reduce((s, c) => s + convert(Number(c.monthly_payment), c.currency, base, rates), 0);
+  const currency = base;
 
   function add() {
     setEditing(null);

@@ -7,6 +7,8 @@ import { Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { DailyBarChart, CategoryDonut, MultiLineChart } from "@/components/charts/charts";
+import { useApp } from "@/components/app/app-shell";
+import { convert } from "@/lib/currency";
 import { formatCurrency, percentChange, cn } from "@/lib/utils";
 import type { ExpenseWithCategory } from "@/lib/types";
 
@@ -21,7 +23,13 @@ const PERIODS: { key: Period; label: string }[] = [
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
 const MONTHS_SHORT = ["Січ", "Лют", "Бер", "Кві", "Тра", "Чер", "Лип", "Сер", "Вер", "Жов", "Лис", "Гру"];
 
-export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] }) {
+export function AnalyticsView({ expenses: rawExpenses }: { expenses: ExpenseWithCategory[] }) {
+  const { currency: base, rates } = useApp();
+  // Конвертуємо суми у базову валюту один раз — далі всі підрахунки в базовій.
+  const expenses = useMemo(
+    () => rawExpenses.map((e) => ({ ...e, amount: convert(Number(e.amount), e.currency, base, rates) })),
+    [rawExpenses, base, rates],
+  );
   const [period, setPeriod] = useState<Period>("month");
   const [monthOffset, setMonthOffset] = useState(0); // 0 = поточний місяць
 
@@ -126,13 +134,13 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
         <Card>
           <CardContent>
             <p className="text-sm text-fg-muted">Витрачено · {label}</p>
-            <p className="mt-1 text-2xl font-bold text-fg">{formatCurrency(total, "UAH")}</p>
+            <p className="mt-1 text-2xl font-bold text-fg">{formatCurrency(total, base)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <p className="text-sm text-fg-muted">Попередній період</p>
-            <p className="mt-1 text-2xl font-bold text-fg">{formatCurrency(prevTotal, "UAH")}</p>
+            <p className="mt-1 text-2xl font-bold text-fg">{formatCurrency(prevTotal, base)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -166,7 +174,7 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
               <CardTitle>Динаміка витрат</CardTitle>
             </CardHeader>
             <CardContent>
-              <DailyBarChart data={bars} currency="UAH" />
+              <DailyBarChart data={bars} currency={base} />
             </CardContent>
           </Card>
 
@@ -177,7 +185,7 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
                 <CardTitle>Розподіл</CardTitle>
               </CardHeader>
               <CardContent>
-                <CategoryDonut data={donut} currency="UAH" />
+                <CategoryDonut data={donut} currency={base} />
               </CardContent>
             </Card>
 
@@ -197,7 +205,7 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
                         <Icon name={c.icon} className="h-4 w-4" />
                       </span>
                       <span className="flex-1 truncate font-medium text-fg">{c.name}</span>
-                      <span className="text-fg-muted">{formatCurrency(c.total, "UAH")}</span>
+                      <span className="text-fg-muted">{formatCurrency(c.total, base)}</span>
                       <span className="w-10 text-right text-xs text-fg-subtle">
                         {((c.total / total) * 100).toFixed(0)}%
                       </span>
@@ -276,9 +284,9 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
             <>
               {/* Статистика */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <MiniStat label="Усього" value={formatCurrency(cmp.sum, "UAH", { compact: cmp.sum > 1_000_000 })} />
-                <MiniStat label="Середнє/міс" value={formatCurrency(cmp.avg, "UAH", { compact: cmp.avg > 1_000_000 })} />
-                <MiniStat label="Найбільший" value={cmp.maxLabel || "—"} sub={cmp.maxAmount ? formatCurrency(cmp.maxAmount, "UAH", { compact: true }) : undefined} />
+                <MiniStat label="Усього" value={formatCurrency(cmp.sum, base, { compact: cmp.sum > 1_000_000 })} />
+                <MiniStat label="Середнє/міс" value={formatCurrency(cmp.avg, base, { compact: cmp.avg > 1_000_000 })} />
+                <MiniStat label="Найбільший" value={cmp.maxLabel || "—"} sub={cmp.maxAmount ? formatCurrency(cmp.maxAmount, base, { compact: true }) : undefined} />
                 <MiniStat
                   label="Зміна (перший→останній)"
                   value={cmp.change === null ? "—" : `${cmp.change > 0 ? "+" : ""}${cmp.change.toFixed(0)}%`}
@@ -289,12 +297,12 @@ export function AnalyticsView({ expenses }: { expenses: ExpenseWithCategory[] })
               {/* Графік */}
               {compareCat === "all" ? (
                 cmp.series.length > 0 ? (
-                  <MultiLineChart data={cmp.data} series={cmp.series} currency="UAH" />
+                  <MultiLineChart data={cmp.data} series={cmp.series} currency={base} />
                 ) : (
                   <p className="py-10 text-center text-sm text-fg-subtle">Немає витрат за обрані місяці</p>
                 )
               ) : (
-                <DailyBarChart data={cmp.bars} currency="UAH" />
+                <DailyBarChart data={cmp.bars} currency={base} />
               )}
             </>
           )}

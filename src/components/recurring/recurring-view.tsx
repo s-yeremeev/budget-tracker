@@ -11,17 +11,18 @@ import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/components/app/app-shell";
 import { RecurringForm } from "@/components/recurring/recurring-form";
 import { deleteRecurring, toggleRecurring } from "@/lib/actions/recurring";
+import { convert } from "@/lib/currency";
 import { formatCurrency, formatDateUk, cn } from "@/lib/utils";
 import type { RecurringExpense } from "@/lib/types";
 
 export function RecurringView({ items }: { items: RecurringExpense[] }) {
-  const { categories } = useApp();
+  const { categories, currency: base, rates } = useApp();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RecurringExpense | null>(null);
 
   const monthlyTotal = items
     .filter((r) => r.active)
-    .reduce((s, r) => s + Number(r.amount), 0);
+    .reduce((s, r) => s + convert(Number(r.amount), r.currency, base, rates), 0);
 
   function add() {
     setEditing(null);
@@ -36,7 +37,7 @@ export function RecurringView({ items }: { items: RecurringExpense[] }) {
             <div>
               <p className="text-sm text-fg-muted">Регулярні витрати / міс</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-fg">
-                {formatCurrency(monthlyTotal, "UAH")}
+                {formatCurrency(monthlyTotal, base)}
               </p>
               <p className="mt-0.5 text-xs text-fg-subtle">
                 {items.filter((r) => r.active).length} активних шаблонів

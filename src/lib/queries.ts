@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { monthBounds, toISODate } from "@/lib/utils";
+import { convert, type Rates } from "@/lib/currency";
 import type {
   Asset,
   AssetCategory,
@@ -15,8 +16,8 @@ export async function getUserId() {
   return user?.id ?? null;
 }
 
-/** Активи + категорії + загальний Net Worth. */
-export async function getAssetsData(userId: string) {
+/** Активи + категорії + загальний Net Worth (у базовій валюті). */
+export async function getAssetsData(userId: string, base: string, rates: Rates) {
   const supabase = await createClient();
   const [{ data: assets }, { data: categories }] = await Promise.all([
     supabase
@@ -31,7 +32,7 @@ export async function getAssetsData(userId: string) {
       .order("created_at", { ascending: true }),
   ]);
   const list = (assets as Asset[]) ?? [];
-  const total = list.reduce((s, a) => s + Number(a.value), 0);
+  const total = list.reduce((s, a) => s + convert(Number(a.value), a.currency, base, rates), 0);
   return {
     assets: list,
     categories: (categories as AssetCategory[]) ?? [],
@@ -89,29 +90,34 @@ export interface CategoryTotal {
   total: number;
 }
 
-/** Агрегує витрати за категоріями. */
-export function aggregateByCategory(expenses: ExpenseWithCategory[]): CategoryTotal[] {
+/** Агрегує витрати за категоріями (суми у базовій валюті). */
+export function aggregateByCategory(
+  expenses: ExpenseWithCategory[],
+  base: string,
+  rates: Rates,
+): CategoryTotal[] {
   const map = new Map<string, CategoryTotal>();
   for (const e of expenses) {
     const key = e.category?.id ?? "none";
+    const amount = convert(Number(e.amount), e.currency, base, rates);
     const existing = map.get(key);
     if (existing) {
-      existing.total += Number(e.amount);
+      existing.total += amount;
     } else {
       map.set(key, {
         id: key,
         name: e.category?.name ?? "Без категорії",
         color: e.category?.color ?? "#64748b",
         icon: e.category?.icon ?? "Tag",
-        total: Number(e.amount),
+        total: amount,
       });
     }
   }
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
-/** Сума витрат за поточний та попередній місяць. */
-export async function getMonthComparison(userId: string, ref: Date) {
+/** Сума витрат за поточний та попередній місяць (у базовій валюті). */
+export async function getMonthComparison(userId: string, ref: Date, base: string, rates: Rates) {
   const supabase = await createClient();
   const cur = monthBounds(ref);
   const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
@@ -120,11 +126,11 @@ export async function getMonthComparison(userId: string, ref: Date) {
   const sumBetween = async (start: string, end: string) => {
     const { data } = await supabase
       .from("expenses")
-      .select("amount")
+      .select("amount, currency")
       .eq("user_id", userId)
       .gte("spent_at", start)
       .lte("spent_at", end);
-    return (data ?? []).reduce((s, e) => s + Number(e.amount), 0);
+    return (data ?? []).reduce((s, e) => s + convert(Number(e.amount), e.currency, base, rates), 0);
   };
 
   const [current, previous] = await Promise.all([
@@ -134,16 +140,16 @@ export async function getMonthComparison(userId: string, ref: Date) {
   return { current, previous };
 }
 
-/** Сума запланованого бюджету на місяць (period = 1-ше число). */
-export async function getMonthBudgetTotal(userId: string, ref: Date) {
+/** Сума запланованого бюджету на місяць (у базовій валюті). */
+export async function getMonthBudgetTotal(userId: string, ref: Date, base: string, rates: Rates) {
   const supabase = await createClient();
   const period = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}-01`;
   const { data } = await supabase
     .from("budgets")
-    .select("amount")
+    .select("amount, currency")
     .eq("user_id", userId)
     .eq("period", period);
-  return (data ?? []).reduce((s, b) => s + Number(b.amount), 0);
+  return (data ?? []).reduce((s, b) => s + convert(Number(b.amount), b.currency, base, rates), 0);
 }
 
 /** Доходи за період [start, end] з підтягнутим активом. */
@@ -160,8 +166,8 @@ export async function getIncomes(userId: string, start: string, end: string) {
   return (data as unknown as import("@/lib/types").IncomeWithAsset[]) ?? [];
 }
 
-/** Сума доходів за поточний та попередній місяць. */
-export async function getMonthIncome(userId: string, ref: Date) {
+/** Сума доходів за поточний та попередній місяць (у базовій валюті). */
+export async function getMonthIncome(userId: string, ref: Date, base: string, rates: Rates) {
   const supabase = await createClient();
   const cur = monthBounds(ref);
   const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
@@ -169,11 +175,11 @@ export async function getMonthIncome(userId: string, ref: Date) {
   const sumBetween = async (start: string, end: string) => {
     const { data } = await supabase
       .from("incomes")
-      .select("amount")
+      .select("amount, currency")
       .eq("user_id", userId)
       .gte("received_at", start)
       .lte("received_at", end);
-    return (data ?? []).reduce((s, i) => s + Number(i.amount), 0);
+    return (data ?? []).reduce((s, i) => s + convert(Number(i.amount), i.currency, base, rates), 0);
   };
   const [current, previous] = await Promise.all([
     sumBetween(cur.start, cur.end),
@@ -204,14 +210,14 @@ export async function getCredits(userId: string) {
   return (data as unknown as import("@/lib/types").Credit[]) ?? [];
 }
 
-/** Сума залишків за всіма кредитами (загальний борг). */
-export async function getCreditsTotal(userId: string) {
+/** Сума залишків за всіма кредитами у базовій валюті (загальний борг). */
+export async function getCreditsTotal(userId: string, base: string, rates: Rates) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("credits")
-    .select("remaining_amount")
+    .select("remaining_amount, currency")
     .eq("user_id", userId);
-  return (data ?? []).reduce((s, c) => s + Number(c.remaining_amount), 0);
+  return (data ?? []).reduce((s, c) => s + convert(Number(c.remaining_amount), c.currency, base, rates), 0);
 }
 
 export { monthBounds, toISODate };

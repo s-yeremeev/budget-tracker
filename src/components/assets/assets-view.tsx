@@ -11,6 +11,8 @@ import { Icon } from "@/components/ui/icon";
 import { NetWorthChart } from "@/components/charts/charts";
 import { AssetForm } from "@/components/assets/asset-form";
 import { deleteAsset } from "@/lib/actions/assets";
+import { useApp } from "@/components/app/app-shell";
+import { convert } from "@/lib/currency";
 import { formatCurrency, percentChange, cn } from "@/lib/utils";
 import type { Asset, AssetCategory } from "@/lib/types";
 
@@ -23,6 +25,7 @@ interface Props {
 
 export function AssetsView({ assets, categories, total, series }: Props) {
   const router = useRouter();
+  const { currency: base, rates } = useApp();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [presetCat, setPresetCat] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export function AssetsView({ assets, categories, total, series }: Props) {
             <div>
               <p className="text-sm text-fg-muted">Чистий капітал</p>
               <p className="mt-1 text-3xl font-bold tracking-tight text-fg">
-                {formatCurrency(total, "UAH")}
+                {formatCurrency(total, base)}
               </p>
               {nwChange !== null && (
                 <p className={cn("mt-1 flex items-center gap-1 text-sm font-medium", nwChange >= 0 ? "text-success" : "text-danger")}>
@@ -70,7 +73,7 @@ export function AssetsView({ assets, categories, total, series }: Props) {
             </Button>
           </div>
           <div className="mt-4">
-            <NetWorthChart data={nwData} currency="UAH" />
+            <NetWorthChart data={nwData} currency={base} />
           </div>
         </CardContent>
       </Card>
@@ -96,7 +99,7 @@ export function AssetsView({ assets, categories, total, series }: Props) {
       {categories.map((cat) => {
         const items = assets.filter((a) => a.category_id === cat.id);
         if (items.length === 0) return null;
-        const catTotal = items.reduce((s, a) => s + Number(a.value), 0);
+        const catTotal = items.reduce((s, a) => s + convert(Number(a.value), a.currency, base, rates), 0);
         const share = total ? (catTotal / total) * 100 : 0;
         return (
           <Card key={cat.id}>
@@ -114,7 +117,7 @@ export function AssetsView({ assets, categories, total, series }: Props) {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-base font-bold text-fg">{formatCurrency(catTotal, "UAH")}</p>
+                <p className="text-base font-bold text-fg">{formatCurrency(catTotal, base)}</p>
                 <button
                   onClick={() => add(cat.id)}
                   className="text-xs font-medium text-primary hover:underline"

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/app/app-shell";
 import { processRecurring } from "@/lib/server/recurring";
+import { getRates } from "@/lib/server/rates";
 import type { Asset, ExpenseCategory, Profile } from "@/lib/types";
 
 export default async function AppLayout({
@@ -36,11 +37,15 @@ export default async function AppLayout({
       .order("value", { ascending: false }),
   ]);
 
+  const base = (profile as Profile)?.base_currency ?? "UAH";
+  const rates = await getRates(base);
+
   return (
     <AppShell
       profile={(profile as Profile) ?? null}
       categories={(categories as ExpenseCategory[]) ?? []}
       assets={(assets as Asset[]) ?? []}
+      rates={rates}
     >
       {children}
     </AppShell>

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IncomeForm } from "@/components/income/income-form";
+import { useApp } from "@/components/app/app-shell";
+import { convert } from "@/lib/currency";
 import { deleteIncome } from "@/lib/actions/incomes";
 import { formatCurrency, formatDateUk, monthBounds, toISODate, cn } from "@/lib/utils";
 import type { IncomeWithAsset, Income } from "@/lib/types";
@@ -21,6 +23,7 @@ const PERIODS: { key: Period; label: string }[] = [
 ];
 
 export function IncomeView({ incomes }: { incomes: IncomeWithAsset[] }) {
+  const { currency: base, rates } = useApp();
   const [period, setPeriod] = useState<Period>("month");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Income | null>(null);
@@ -38,7 +41,7 @@ export function IncomeView({ incomes }: { incomes: IncomeWithAsset[] }) {
     () => incomes.filter((i) => i.received_at >= range.start && i.received_at <= range.end),
     [incomes, range],
   );
-  const total = filtered.reduce((s, i) => s + Number(i.amount), 0);
+  const total = filtered.reduce((s, i) => s + convert(Number(i.amount), i.currency, base, rates), 0);
 
   const groups = useMemo(() => {
     const map = new Map<string, IncomeWithAsset[]>();
@@ -75,7 +78,7 @@ export function IncomeView({ incomes }: { incomes: IncomeWithAsset[] }) {
         <div className="flex-1" />
         <div className="text-right">
           <p className="text-xs text-fg-subtle">{filtered.length} надходжень</p>
-          <p className="text-lg font-bold text-success">+{formatCurrency(total, "UAH")}</p>
+          <p className="text-lg font-bold text-success">+{formatCurrency(total, base)}</p>
         </div>
         <Button onClick={add}>
           <Plus className="h-4 w-4" /> Дохід
@@ -98,12 +101,12 @@ export function IncomeView({ incomes }: { incomes: IncomeWithAsset[] }) {
           ) : (
             <div className="divide-y divide-border">
               {groups.map(([date, items]) => {
-                const dayTotal = items.reduce((s, i) => s + Number(i.amount), 0);
+                const dayTotal = items.reduce((s, i) => s + convert(Number(i.amount), i.currency, base, rates), 0);
                 return (
                   <div key={date} className="py-1">
                     <div className="flex items-center justify-between pt-3 pb-1">
                       <span className="text-xs font-medium uppercase tracking-wide text-fg-subtle">{formatDateUk(date)}</span>
-                      <span className="text-xs font-medium text-success">+{formatCurrency(dayTotal, "UAH")}</span>
+                      <span className="text-xs font-medium text-success">+{formatCurrency(dayTotal, base)}</span>
                     </div>
                     <ul className="divide-y divide-border">
                       {items.map((i) => (

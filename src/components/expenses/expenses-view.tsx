@@ -7,6 +7,7 @@ import { Input, Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ExpenseList } from "@/components/expenses/expense-list";
 import { useApp } from "@/components/app/app-shell";
+import { convert } from "@/lib/currency";
 import { formatCurrency, formatDateUk, monthBounds, toISODate, cn } from "@/lib/utils";
 import type { ExpenseCategory, ExpenseWithCategory } from "@/lib/types";
 
@@ -26,7 +27,7 @@ export function ExpensesView({
   expenses: ExpenseWithCategory[];
   categories: ExpenseCategory[];
 }) {
-  const { openExpense } = useApp();
+  const { openExpense, currency: base, rates } = useApp();
   const [period, setPeriod] = useState<Period>("month");
   const [categoryId, setCategoryId] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -55,7 +56,7 @@ export function ExpensesView({
     });
   }, [expenses, range, categoryId, search]);
 
-  const total = filtered.reduce((s, e) => s + Number(e.amount), 0);
+  const total = filtered.reduce((s, e) => s + convert(Number(e.amount), e.currency, base, rates), 0);
 
   // Групування за датою
   const groups = useMemo(() => {
@@ -89,7 +90,7 @@ export function ExpensesView({
         <div className="flex-1" />
         <div className="text-right">
           <p className="text-xs text-fg-subtle">{filtered.length} транзакцій</p>
-          <p className="text-lg font-bold text-fg">{formatCurrency(total, "UAH")}</p>
+          <p className="text-lg font-bold text-fg">{formatCurrency(total, base)}</p>
         </div>
       </div>
 
@@ -143,7 +144,7 @@ export function ExpensesView({
           ) : (
             <div className="divide-y divide-border">
               {groups.map(([date, items]) => {
-                const dayTotal = items.reduce((s, e) => s + Number(e.amount), 0);
+                const dayTotal = items.reduce((s, e) => s + convert(Number(e.amount), e.currency, base, rates), 0);
                 return (
                   <div key={date} className="py-1">
                     <div className="flex items-center justify-between pt-3 pb-1">
@@ -151,7 +152,7 @@ export function ExpensesView({
                         {formatDateUk(date)}
                       </span>
                       <span className="text-xs font-medium text-fg-muted">
-                        {formatCurrency(dayTotal, "UAH")}
+                        {formatCurrency(dayTotal, base)}
                       </span>
                     </div>
                     <ExpenseList expenses={items} />

@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { CommandPalette } from "@/components/app/command-palette";
 import type { ExpenseCategory, Expense, Profile, Asset } from "@/lib/types";
+import type { Rates } from "@/lib/currency";
 
 interface AppContextValue {
   openExpense: (expense?: Expense | null) => void;
@@ -14,6 +15,7 @@ interface AppContextValue {
   categories: ExpenseCategory[];
   assets: Asset[];
   currency: string;
+  rates: Rates;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -29,9 +31,10 @@ interface Props {
   profile: Profile | null;
   categories: ExpenseCategory[];
   assets: Asset[];
+  rates: Rates;
 }
 
-export function AppShell({ children, profile, categories, assets }: Props) {
+export function AppShell({ children, profile, categories, assets, rates }: Props) {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -63,7 +66,7 @@ export function AppShell({ children, profile, categories, assets }: Props) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ openExpense, openPalette, categories, assets, currency }}>
+    <AppContext.Provider value={{ openExpense, openPalette, categories, assets, currency, rates }}>
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

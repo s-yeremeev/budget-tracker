@@ -25,6 +25,7 @@ import {
   aggregateByCategory,
 } from "@/lib/queries";
 import { isWidgetOn } from "@/lib/dashboard-widgets";
+import { getRates } from "@/lib/server/rates";
 import {
   formatCurrency,
   formatMonthUk,
@@ -41,6 +42,15 @@ export default async function DashboardPage() {
   const { start, end } = monthBounds(now);
   const supabase = await createClient();
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("base_currency, dashboard_prefs")
+    .eq("id", userId)
+    .single();
+  const base = (profile as Pick<Profile, "base_currency">)?.base_currency ?? "UAH";
+  const prefs = (profile as Pick<Profile, "dashboard_prefs">)?.dashboard_prefs ?? null;
+  const rates = await getRates(base);
+
   const [
     { total: assetsTotal },
     series,
@@ -52,22 +62,19 @@ export default async function DashboardPage() {
     incomeCmp,
     goals,
     credits,
-    { data: profile },
   ] = await Promise.all([
-    getAssetsData(userId),
+    getAssetsData(userId, base, rates),
     getNetWorthSeries(userId),
-    getMonthComparison(userId, now),
+    getMonthComparison(userId, now, base, rates),
     getRecentExpenses(userId, 6),
     getExpenses(userId, start, end),
-    getMonthBudgetTotal(userId, now),
-    getCreditsTotal(userId),
-    getMonthIncome(userId, now),
+    getMonthBudgetTotal(userId, now, base, rates),
+    getCreditsTotal(userId, base, rates),
+    getMonthIncome(userId, now, base, rates),
     getGoals(userId),
     getCredits(userId),
-    supabase.from("profiles").select("dashboard_prefs").eq("id", userId).single(),
   ]);
 
-  const prefs = ((profile as Pick<Profile, "dashboard_prefs">)?.dashboard_prefs) ?? null;
   const show = (k: string) => isWidgetOn(prefs, k);
 
   const netWorth = assetsTotal - debtTotal;
@@ -76,7 +83,7 @@ export default async function DashboardPage() {
   const incomeChange = percentChange(incomeCmp.current, incomeCmp.previous);
   const savingsRate = monthIncome > 0 ? (balance / monthIncome) * 100 : null;
 
-  const byCategory = aggregateByCategory(monthExpenses);
+  const byCategory = aggregateByCategory(monthExpenses, base, rates);
   const topCategory = byCategory[0] ?? null;
   const spentThisMonth = monthCmp.current;
   const change = percentChange(monthCmp.current, monthCmp.previous);
@@ -99,35 +106,35 @@ export default async function DashboardPage() {
       <StatCard
         key="nw"
         label="Чистий капітал"
-        value={formatCurrency(netWorth, "UAH", { compact: netWorth > 1_000_000 })}
+        value={formatCurrency(netWorth, base, { compact: netWorth > 1_000_000 })}
         icon="Landmark"
         iconColor="#6366f1"
         change={nwChange}
         positiveIsGood
         hint={
           debtTotal > 0
-            ? `Активи ${formatCurrency(assetsTotal, "UAH", { compact: true })} − борги ${formatCurrency(debtTotal, "UAH", { compact: true })}`
+            ? `Активи ${formatCurrency(assetsTotal, base, { compact: true })} − борги ${formatCurrency(debtTotal, base, { compact: true })}`
             : "Сума всіх активів"
         }
       />
     ),
     show("m_income") && (
-      <StatCard key="inc" label={`Доходи · ${formatMonthUk(now)}`} value={formatCurrency(monthIncome, "UAH")} icon="Banknote" iconColor="#10b981" change={incomeChange} positiveIsGood hint="Порівняно з минулим місяцем" />
+      <StatCard key="inc" label={`Доходи · ${formatMonthUk(now)}`} value={formatCurrency(monthIncome, base)} icon="Banknote" iconColor="#10b981" change={incomeChange} positiveIsGood hint="Порівняно з минулим місяцем" />
     ),
     show("m_expenses") && (
-      <StatCard key="exp" label={`Витрати · ${formatMonthUk(now)}`} value={formatCurrency(spentThisMonth, "UAH")} icon="Receipt" iconColor="#ef4444" change={change} positiveIsGood={false} hint="Порівняно з минулим місяцем" />
+      <StatCard key="exp" label={`Витрати · ${formatMonthUk(now)}`} value={formatCurrency(spentThisMonth, base)} icon="Receipt" iconColor="#ef4444" change={change} positiveIsGood={false} hint="Порівняно з минулим місяцем" />
     ),
     show("m_balance") && (
-      <StatCard key="bal" label="Баланс місяця" value={formatCurrency(balance, "UAH", { sign: true })} icon="Scale" iconColor={balance >= 0 ? "#10b981" : "#ef4444"} hint={savingsRate !== null ? `Норма заощаджень: ${savingsRate.toFixed(0)}%` : "Дохід − витрати за місяць"} />
+      <StatCard key="bal" label="Баланс місяця" value={formatCurrency(balance, base, { sign: true })} icon="Scale" iconColor={balance >= 0 ? "#10b981" : "#ef4444"} hint={savingsRate !== null ? `Норма заощаджень: ${savingsRate.toFixed(0)}%` : "Дохід − витрати за місяць"} />
     ),
     show("m_topcat") && (
-      <StatCard key="top" label="Найбільша категорія" value={topCategory ? formatCurrency(topCategory.total, "UAH") : "—"} icon={topCategory?.icon ?? "ChartPie"} iconColor={topCategory?.color ?? "#10b981"} hint={topCategory?.name ?? "Немає витрат цього місяця"} />
+      <StatCard key="top" label="Найбільша категорія" value={topCategory ? formatCurrency(topCategory.total, base) : "—"} icon={topCategory?.icon ?? "ChartPie"} iconColor={topCategory?.color ?? "#10b981"} hint={topCategory?.name ?? "Немає витрат цього місяця"} />
     ),
     show("m_budget") &&
       (budgetTotal > 0 ? (
-        <StatCard key="bud" label="Залишок бюджету" value={formatCurrency(budgetTotal - spentThisMonth, "UAH")} icon="PiggyBank" iconColor={budgetTotal - spentThisMonth < 0 ? "#ef4444" : "#10b981"} hint={`План: ${formatCurrency(budgetTotal, "UAH")}`} />
+        <StatCard key="bud" label="Залишок бюджету" value={formatCurrency(budgetTotal - spentThisMonth, base)} icon="PiggyBank" iconColor={budgetTotal - spentThisMonth < 0 ? "#ef4444" : "#10b981"} hint={`План: ${formatCurrency(budgetTotal, base)}`} />
       ) : (
-        <StatCard key="tx" label="Транзакцій за місяць" value={String(monthExpenses.length)} icon="ListChecks" iconColor="#f59e0b" hint={`Середня: ${monthExpenses.length ? formatCurrency(spentThisMonth / monthExpenses.length, "UAH") : "—"}`} />
+        <StatCard key="tx" label="Транзакцій за місяць" value={String(monthExpenses.length)} icon="ListChecks" iconColor="#f59e0b" hint={`Середня: ${monthExpenses.length ? formatCurrency(spentThisMonth / monthExpenses.length, base) : "—"}`} />
       )),
   ].filter(Boolean);
 
@@ -167,7 +174,7 @@ export default async function DashboardPage() {
                 </Link>
               </CardHeader>
               <CardContent>
-                <NetWorthChart data={nwData} currency="UAH" />
+                <NetWorthChart data={nwData} currency={base} />
               </CardContent>
             </Card>
           )}
@@ -180,13 +187,13 @@ export default async function DashboardPage() {
               <CardContent>
                 {donutData.length ? (
                   <>
-                    <CategoryDonut data={donutData} currency="UAH" />
+                    <CategoryDonut data={donutData} currency={base} />
                     <ul className="mt-4 space-y-2">
                       {byCategory.slice(0, 4).map((c) => (
                         <li key={c.id} className="flex items-center gap-2 text-sm">
                           <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
                           <span className="flex-1 truncate text-fg-muted">{c.name}</span>
-                          <span className="font-medium text-fg">{formatCurrency(c.total, "UAH")}</span>
+                          <span className="font-medium text-fg">{formatCurrency(c.total, base)}</span>
                         </li>
                       ))}
                     </ul>
@@ -244,7 +251,7 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-3.5">
                 <p className="text-sm text-fg-muted">
-                  Загальний борг: <span className="font-semibold text-danger">{formatCurrency(debtTotal, "UAH")}</span>
+                  Загальний борг: <span className="font-semibold text-danger">{formatCurrency(debtTotal, base)}</span>
                 </p>
                 {credits.slice(0, 3).map((c) => {
                   const total = Number(c.total_amount);
