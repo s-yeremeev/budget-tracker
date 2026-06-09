@@ -56,6 +56,24 @@ export async function deleteAsset(id: string) {
   return { error: null };
 }
 
+/** Коригує баланс активу на delta (може бути відʼємним). Не нижче 0. */
+export async function adjustAsset(id: string, delta: number) {
+  const { supabase, userId } = await requireUser();
+  if (!delta) return { error: "Вкажіть суму" };
+  const { data: asset } = await supabase
+    .from("assets")
+    .select("value")
+    .eq("id", id)
+    .single();
+  if (!asset) return { error: "Актив не знайдено" };
+  const next = Math.max(0, Number(asset.value) + delta);
+  const { error } = await supabase.from("assets").update({ value: next }).eq("id", id);
+  if (error) return { error: error.message };
+  await recomputeNetWorth(userId);
+  revalidateAll();
+  return { error: null };
+}
+
 export interface AssetCategoryInput {
   name: string;
   type: AssetType;

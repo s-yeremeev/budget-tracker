@@ -2,15 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { Plus, Minus, Pencil, Trash2, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { NetWorthChart } from "@/components/charts/charts";
 import { AssetForm } from "@/components/assets/asset-form";
-import { deleteAsset } from "@/lib/actions/assets";
+import { deleteAsset, adjustAsset } from "@/lib/actions/assets";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { formatCurrency, percentChange, cn } from "@/lib/utils";
@@ -179,6 +180,8 @@ function AssetRow({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [amount, setAmount] = useState("");
 
   function remove() {
     startTransition(async () => {
@@ -187,36 +190,81 @@ function AssetRow({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
     });
   }
 
+  function adjust(sign: 1 | -1) {
+    const num = parseFloat(amount.replace(",", ".")) || 0;
+    if (num <= 0) return;
+    startTransition(async () => {
+      await adjustAsset(asset.id, sign * num);
+      setAmount("");
+      setAdjusting(false);
+      router.refresh();
+    });
+  }
+
   return (
-    <li className={cn("group flex items-center gap-3 py-3", pending && "opacity-40")}>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-fg">{asset.name}</p>
-        <p className="text-xs text-fg-subtle">{asset.currency}</p>
+    <li className={cn("py-3", pending && "opacity-50")}>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-fg">{asset.name}</p>
+          <p className="text-xs text-fg-subtle">{asset.currency}</p>
+        </div>
+        <span className="text-sm font-semibold text-fg">
+          {formatCurrency(Number(asset.value), asset.currency)}
+        </span>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {confirming ? (
+            <div className="flex items-center gap-1">
+              <button onClick={remove} className="rounded-lg bg-danger px-2 py-1 text-xs font-medium text-white">
+                Видалити
+              </button>
+              <button onClick={() => setConfirming(false)} className="rounded-lg px-2 py-1 text-xs text-fg-muted hover:bg-surface-2">
+                Ні
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setAdjusting((v) => !v)}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold transition-colors",
+                  adjusting ? "bg-primary-soft text-primary" : "text-fg-subtle hover:bg-surface-2 hover:text-fg",
+                )}
+                aria-label="Коригувати баланс"
+                title="Додати / зняти суму"
+              >
+                ±
+              </button>
+              <button onClick={onEdit} className="rounded-lg p-2 text-fg-subtle hover:bg-surface-2 hover:text-fg" aria-label="Редагувати">
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button onClick={() => setConfirming(true)} className="rounded-lg p-2 text-fg-subtle hover:bg-danger-soft hover:text-danger" aria-label="Видалити">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <span className="text-sm font-semibold text-fg">
-        {formatCurrency(Number(asset.value), asset.currency)}
-      </span>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        {confirming ? (
-          <div className="flex items-center gap-1">
-            <button onClick={remove} className="rounded-lg bg-danger px-2 py-1 text-xs font-medium text-white">
-              Видалити
-            </button>
-            <button onClick={() => setConfirming(false)} className="rounded-lg px-2 py-1 text-xs text-fg-muted hover:bg-surface-2">
-              Ні
-            </button>
-          </div>
-        ) : (
-          <>
-            <button onClick={onEdit} className="rounded-lg p-2 text-fg-subtle hover:bg-surface-2 hover:text-fg" aria-label="Редагувати">
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button onClick={() => setConfirming(true)} className="rounded-lg p-2 text-fg-subtle hover:bg-danger-soft hover:text-danger" aria-label="Видалити">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </>
-        )}
-      </div>
+
+      {/* Швидке коригування балансу */}
+      {adjusting && !confirming && (
+        <div className="mt-2.5 flex items-center gap-2">
+          <Input
+            inputMode="decimal"
+            autoFocus
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && adjust(1)}
+            placeholder="Сума"
+            className="h-9 flex-1"
+          />
+          <Button size="sm" variant="outline" onClick={() => adjust(1)}>
+            <Plus className="h-4 w-4" /> Додати
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => adjust(-1)}>
+            <Minus className="h-4 w-4" /> Зняти
+          </Button>
+        </div>
+      )}
     </li>
   );
 }
