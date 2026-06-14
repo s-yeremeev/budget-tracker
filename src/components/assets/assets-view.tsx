@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Minus, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { Plus, Minus, Pencil, Trash2, TrendingUp, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { NetWorthChart } from "@/components/charts/charts";
 import { AssetForm } from "@/components/assets/asset-form";
+import { TransferForm } from "@/components/assets/transfer-form";
 import { deleteAsset, adjustAsset } from "@/lib/actions/assets";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
@@ -30,6 +31,7 @@ export function AssetsView({ assets, categories, total, series }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [presetCat, setPresetCat] = useState<string | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   function add(categoryId?: string) {
     setEditing(null);
@@ -69,9 +71,16 @@ export function AssetsView({ assets, categories, total, series }: Props) {
                 </p>
               )}
             </div>
-            <Button onClick={() => add()}>
-              <Plus className="h-4 w-4" /> Додати актив
-            </Button>
+            <div className="flex gap-2">
+              {assets.length >= 2 && (
+                <Button variant="outline" onClick={() => setTransferOpen(true)}>
+                  <ArrowRightLeft className="h-4 w-4" /> Перекинути
+                </Button>
+              )}
+              <Button onClick={() => add()}>
+                <Plus className="h-4 w-4" /> Додати актив
+              </Button>
+            </div>
           </div>
           <div className="mt-4">
             <NetWorthChart data={nwData} currency={base} />
@@ -171,6 +180,15 @@ export function AssetsView({ assets, categories, total, series }: Props) {
           defaultCategoryId={presetCat}
           onDone={() => setOpen(false)}
         />
+      </Modal>
+
+      <Modal
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        title="Переказ між активами"
+        description="Перекинь кошти з одного рахунку на інший (з конвертацією, якщо валюти різні)."
+      >
+        <TransferForm assets={assets} onDone={() => setTransferOpen(false)} />
       </Modal>
     </div>
   );

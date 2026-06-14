@@ -74,6 +74,43 @@ export async function adjustAsset(id: string, delta: number) {
   return { error: null };
 }
 
+/**
+ * Переказ між активами: знімає `amount` з джерела й додає `received` на
+ * призначення (різні валюти — отримана сума вже сконвертована на клієнті,
+ * з можливістю ручного коригування під реальний курс).
+ */
+export async function transferBetweenAssets(input: {
+  from_id: string;
+  to_id: string;
+  amount: number;
+  received: number;
+}) {
+  const { supabase, userId } = await requireUser();
+  if (input.from_id === input.to_id) return { error: "Оберіть різні активи" };
+  if (input.amount <= 0 || input.received <= 0) return { error: "Вкажіть суму більшу за нуль" };
+
+  const { data: assets } = await supabase
+    .from("assets")
+    .select("id, value")
+    .in("id", [input.from_id, input.to_id]);
+  const from = assets?.find((a) => a.id === input.from_id);
+  const to = assets?.find((a) => a.id === input.to_id);
+  if (!from || !to) return { error: "Актив не знайдено" };
+
+  const fromNext = Math.max(0, Number(from.value) - input.amount);
+  const toNext = Number(to.value) + input.received;
+
+  const [{ error: e1 }, { error: e2 }] = await Promise.all([
+    supabase.from("assets").update({ value: fromNext }).eq("id", input.from_id),
+    supabase.from("assets").update({ value: toNext }).eq("id", input.to_id),
+  ]);
+  if (e1 || e2) return { error: (e1 ?? e2)!.message };
+
+  await recomputeNetWorth(userId);
+  revalidateAll();
+  return { error: null };
+}
+
 export interface AssetCategoryInput {
   name: string;
   type: AssetType;
