@@ -178,7 +178,7 @@ function CreditCardItem({ credit, onEdit }: { credit: Credit; onEdit: () => void
             return (
               <p className={cn("mt-1.5 flex items-center gap-1 text-xs font-medium", soon ? "text-warning" : "text-fg-subtle")}>
                 <CalendarClock className="h-3.5 w-3.5" />
-                Платіж {formatDateUk(d)} · {left === 0 ? "сьогодні" : left === 1 ? "завтра" : `через ${left} дн.`}
+                {credit.auto_pay ? "Авто-платіж" : "Платіж"} {formatDateUk(d)} · {left === 0 ? "сьогодні" : left === 1 ? "завтра" : `через ${left} дн.`}
               </p>
             );
           })()}

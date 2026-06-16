@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/app/app-shell";
 import { processRecurring } from "@/lib/server/recurring";
+import { processCreditPayments } from "@/lib/server/credit-payments";
 import { getRates } from "@/lib/server/rates";
 import type { Asset, ExpenseCategory, Profile } from "@/lib/types";
 
@@ -16,9 +17,11 @@ export default async function AppLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Ліниве авто-нарахування повторюваних витрат (до читання активів).
+  // Ліниве авто-нарахування повторюваних витрат і платежів по кредитах
+  // (до читання активів, щоб баланси були актуальні).
   try {
     await processRecurring(user.id);
+    await processCreditPayments(user.id);
   } catch {
     // не блокуємо застосунок, якщо щось пішло не так
   }

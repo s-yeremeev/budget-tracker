@@ -120,6 +120,10 @@ export interface Credit {
   remaining_amount: number;
   monthly_payment: number;
   payment_day: number | null;
+  auto_pay: boolean;
+  payment_asset_id: string | null;
+  payment_category_id: string | null;
+  next_payment: string | null;
   currency: string;
   created_at: string;
 }

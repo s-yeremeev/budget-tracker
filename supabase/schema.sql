@@ -150,6 +150,10 @@ create table if not exists public.credits (
   remaining_amount numeric(14, 2) not null check (remaining_amount >= 0), -- залишок
   monthly_payment numeric(14, 2) not null default 0,      -- щомісячна плата
   payment_day     int check (payment_day is null or payment_day between 1 and 31), -- день платежу (опц.)
+  auto_pay        boolean not null default false,         -- автоматично списувати щомісяця
+  payment_asset_id uuid references public.assets (id) on delete set null,           -- з якого активу
+  payment_category_id uuid references public.expense_categories (id) on delete set null, -- категорія транзакції
+  next_payment    date,                                   -- курсор наступного авто-платежу
   currency        text not null default 'UAH',
   created_at      timestamptz not null default now()
 );
@@ -172,6 +176,12 @@ create index if not exists idx_expenses_tags on public.expenses using gin (tags)
 alter table public.credits
   add column if not exists payment_day int
   check (payment_day is null or payment_day between 1 and 31);
+
+-- Автоматичне списання платежу по кредиту.
+alter table public.credits add column if not exists auto_pay boolean not null default false;
+alter table public.credits add column if not exists payment_asset_id uuid references public.assets (id) on delete set null;
+alter table public.credits add column if not exists payment_category_id uuid references public.expense_categories (id) on delete set null;
+alter table public.credits add column if not exists next_payment date;
 
 -- ---------- Індекси ----------
 create index if not exists idx_expenses_user_date   on public.expenses (user_id, spent_at desc);

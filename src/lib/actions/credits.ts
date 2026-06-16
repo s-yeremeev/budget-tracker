@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { nextOccurrence } from "@/lib/server/recurring";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -24,7 +25,18 @@ export interface CreditInput {
   remaining_amount: number;
   monthly_payment: number;
   payment_day: number | null;
+  auto_pay: boolean;
+  payment_asset_id: string | null;
+  payment_category_id: string | null;
   currency: string;
+}
+
+/** Курсор наступного авто-платежу (або null, якщо авто-оплата вимкнена). */
+function computeNextPayment(input: CreditInput): string | null {
+  if (input.auto_pay && input.payment_day) {
+    return nextOccurrence(input.payment_day, new Date());
+  }
+  return null;
 }
 
 export async function createCredit(input: CreditInput) {
@@ -37,6 +49,10 @@ export async function createCredit(input: CreditInput) {
     remaining_amount: input.remaining_amount,
     monthly_payment: input.monthly_payment,
     payment_day: input.payment_day,
+    auto_pay: input.auto_pay,
+    payment_asset_id: input.payment_asset_id,
+    payment_category_id: input.payment_category_id,
+    next_payment: computeNextPayment(input),
     currency: input.currency,
   });
   if (error) return { error: error.message };
@@ -55,6 +71,10 @@ export async function updateCredit(id: string, input: CreditInput) {
       remaining_amount: input.remaining_amount,
       monthly_payment: input.monthly_payment,
       payment_day: input.payment_day,
+      auto_pay: input.auto_pay,
+      payment_asset_id: input.payment_asset_id,
+      payment_category_id: input.payment_category_id,
+      next_payment: computeNextPayment(input),
       currency: input.currency,
     })
     .eq("id", id);
