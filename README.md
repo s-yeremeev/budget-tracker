@@ -134,11 +134,11 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 | `incomes` | доходи | `source`, `amount`, `currency`, `received_at`, `comment`, `asset_id` (зарахування) |
 | `recurring_expenses` | шаблони підписок | `category_id`, `asset_id`, `name`, `amount`, `day_of_month`, `active`, `next_run`, `last_run` |
 | `asset_categories` | категорії активів | `type` (investment/safety/cash/custom), `name`, `icon`, `color` |
-| `assets` | активи (рахунки) | `category_id`, `name`, `value`, `currency`; тригер `touch_updated_at` |
+| `assets` | активи (рахунки) | `category_id`, `name`, `value`, **`credit_limit`** (овердрафт), `currency`; тригер `touch_updated_at` |
 | `net_worth_snapshots` | історія Net Worth | `snapshot_date` (unique з user_id), `total_value` |
 | `budgets` | місячні ліміти за категоріями | `category_id`, `period` (1-ше число місяця), `amount`, unique(user,cat,period) |
 | `goals` | фінансові цілі | `target_amount`, `current_amount` (ручні), `asset_id` (привʼязка), `target_date`, `icon`, `color` |
-| `credits` | кредити/борги | `lender`, `name`, `total_amount`, `remaining_amount`, `monthly_payment`, `payment_day` (опц.) |
+| `credits` | кредити/борги | `lender`, `name`, `total_amount`, `remaining_amount`, `monthly_payment`, `payment_day`, **`auto_pay`**, **`payment_asset_id`**, **`payment_category_id`**, **`next_payment`** |
 
 ### Тригери
 - `handle_new_user` (after insert на `auth.users`) → створює `profiles` + дефолтні
@@ -257,10 +257,18 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
   різні валюти → сума конвертується (`convertBetween`), редагується під реальний курс.
   Переказ **НЕ** є витратою/доходом — лише рух між активами.
 - Кнопки дій **завжди видимі** (раніше були hover-only → невидимі на тач/PWA).
+- **Кредитний ліміт (`credit_limit`, овердрафт):** баланс може йти у мінус до
+  `−credit_limit`; «доступно» = `value + credit_limit`. Поріг застосовано в
+  `adjustAsset` і `transferBetweenAssets` (`Math.max(-limit, …)`). Витрати
+  (`applyAssetDeltas`) **не** клампляться. Відʼємний `value` природно зменшує Net Worth.
 
 ### Кредити
 - Залишок зменшується платежами (`addCreditPayment`). `payment_day` (опц.) → найближча
   дата на картці + дашборд-віджет «Найближчі платежі» (`nextPaymentDate`/`daysUntil`).
+- **Авто-списання (`auto_pay`):** `lib/server/credit-payments.ts` →
+  `processCreditPayments(userId)` у `(app)/layout.tsx`. У день платежу генерує
+  витрату-платіж (`payment_category_id`), списує з `payment_asset_id`, зменшує
+  `remaining_amount`, просуває `next_payment` (догенеровує пропущені місяці).
 - Загальний борг віднімається від Net Worth.
 
 ### Аналітика
