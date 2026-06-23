@@ -51,6 +51,7 @@ export interface Asset {
   category_id: string | null;
   name: string;
   value: number;
+  credit_limit: number;
   currency: string;
   created_at: string;
   updated_at: string;

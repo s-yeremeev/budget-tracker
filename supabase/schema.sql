@@ -62,15 +62,20 @@ create table if not exists public.asset_categories (
 
 -- Активи
 create table if not exists public.assets (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users (id) on delete cascade,
-  category_id uuid references public.asset_categories (id) on delete set null,
-  name        text not null,
-  value       numeric(14, 2) not null default 0,
-  currency    text not null default 'UAH',
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  category_id  uuid references public.asset_categories (id) on delete set null,
+  name         text not null,
+  value        numeric(14, 2) not null default 0,
+  credit_limit numeric(14, 2) not null default 0 check (credit_limit >= 0), -- кредитний ліміт (овердрафт)
+  currency     text not null default 'UAH',
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
 );
+-- Для вже створеної БД:
+alter table public.assets
+  add column if not exists credit_limit numeric(14, 2) not null default 0
+  check (credit_limit >= 0);
 
 -- Снапшоти Net Worth (для графіка росту капіталу)
 create table if not exists public.net_worth_snapshots (

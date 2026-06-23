@@ -47,7 +47,8 @@ export function TransferForm({ assets, onDone }: { assets: Asset[]; onDone: () =
     if (amountNum <= 0) return setError("Вкажіть суму більшу за нуль.");
     const receivedNum = sameCurrency ? amountNum : parseFloat(received.replace(",", ".")) || 0;
     if (receivedNum <= 0) return setError("Вкажіть отриману суму.");
-    if (amountNum > Number(from.value)) return setError("На джерелі недостатньо коштів.");
+    const available = Number(from.value) + Number(from.credit_limit ?? 0);
+    if (amountNum > available) return setError("На джерелі недостатньо коштів (з урахуванням ліміту).");
 
     startTransition(async () => {
       const res = await transferBetweenAssets({

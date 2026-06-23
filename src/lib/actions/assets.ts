@@ -24,6 +24,7 @@ export interface AssetInput {
   category_id: string | null;
   name: string;
   value: number;
+  credit_limit: number;
   currency: string;
 }
 
@@ -62,11 +63,13 @@ export async function adjustAsset(id: string, delta: number) {
   if (!delta) return { error: "Вкажіть суму" };
   const { data: asset } = await supabase
     .from("assets")
-    .select("value")
+    .select("value, credit_limit")
     .eq("id", id)
     .single();
   if (!asset) return { error: "Актив не знайдено" };
-  const next = Math.max(0, Number(asset.value) + delta);
+  // Баланс може йти у мінус до −кредитний ліміт.
+  const floor = -Number(asset.credit_limit ?? 0);
+  const next = Math.max(floor, Number(asset.value) + delta);
   const { error } = await supabase.from("assets").update({ value: next }).eq("id", id);
   if (error) return { error: error.message };
   await recomputeNetWorth(userId);
@@ -91,13 +94,15 @@ export async function transferBetweenAssets(input: {
 
   const { data: assets } = await supabase
     .from("assets")
-    .select("id, value")
+    .select("id, value, credit_limit")
     .in("id", [input.from_id, input.to_id]);
   const from = assets?.find((a) => a.id === input.from_id);
   const to = assets?.find((a) => a.id === input.to_id);
   if (!from || !to) return { error: "Актив не знайдено" };
 
-  const fromNext = Math.max(0, Number(from.value) - input.amount);
+  // Джерело може піти у мінус до −кредитний ліміт.
+  const fromFloor = -Number(from.credit_limit ?? 0);
+  const fromNext = Math.max(fromFloor, Number(from.value) - input.amount);
   const toNext = Number(to.value) + input.received;
 
   const [{ error: e1 }, { error: e2 }] = await Promise.all([

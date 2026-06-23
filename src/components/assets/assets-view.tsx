@@ -224,11 +224,25 @@ function AssetRow({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-fg">{asset.name}</p>
-          <p className="text-xs text-fg-subtle">{asset.currency}</p>
+          <p className="text-xs text-fg-subtle">
+            {asset.currency}
+            {Number(asset.credit_limit) > 0 && (
+              <> · ліміт {formatCurrency(Number(asset.credit_limit), asset.currency, { compact: true })}</>
+            )}
+          </p>
         </div>
-        <span className="text-sm font-semibold text-fg">
-          {formatCurrency(Number(asset.value), asset.currency)}
-        </span>
+        <div className="text-right">
+          <span className={cn("text-sm font-semibold", Number(asset.value) < 0 ? "text-danger" : "text-fg")}>
+            {formatCurrency(Number(asset.value), asset.currency)}
+          </span>
+          {Number(asset.credit_limit) > 0 && (
+            <p className="text-[11px] text-fg-subtle">
+              {Number(asset.value) < 0
+                ? `використано ${formatCurrency(-Number(asset.value), asset.currency, { compact: true })}`
+                : `доступно ${formatCurrency(Number(asset.value) + Number(asset.credit_limit), asset.currency, { compact: true })}`}
+            </p>
+          )}
+        </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {confirming ? (
             <div className="flex items-center gap-1">

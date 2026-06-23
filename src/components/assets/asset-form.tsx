@@ -28,6 +28,7 @@ export function AssetForm({
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(asset?.name ?? "");
   const [value, setValue] = useState(asset ? String(asset.value) : "");
+  const [creditLimit, setCreditLimit] = useState(asset?.credit_limit ? String(asset.credit_limit) : "");
   const [currency, setCurrency] = useState(asset?.currency ?? defaultCurrency);
   const [categoryId, setCategoryId] = useState<string | null>(
     asset?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? null,
@@ -46,10 +47,12 @@ export function AssetForm({
       setError("Введіть коректну суму.");
       return;
     }
+    const limitNum = Math.max(0, parseFloat(creditLimit.replace(",", ".")) || 0);
     const input: AssetInput = {
       category_id: categoryId,
       name: name.trim(),
       value: num,
+      credit_limit: limitNum,
       currency,
     };
     startTransition(async () => {
@@ -95,6 +98,20 @@ export function AssetForm({
             ))}
           </Select>
         </div>
+      </div>
+
+      <div>
+        <Label htmlFor="a-limit">Кредитний ліміт (необовʼязково)</Label>
+        <Input
+          id="a-limit"
+          inputMode="decimal"
+          value={creditLimit}
+          onChange={(e) => setCreditLimit(e.target.value)}
+          placeholder="0.00"
+        />
+        <p className="mt-1 text-xs text-fg-subtle">
+          Дозволяє балансу йти у мінус (овердрафт). Використаний ліміт зменшує чистий капітал.
+        </p>
       </div>
 
       <div>
