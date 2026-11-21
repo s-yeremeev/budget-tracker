@@ -93,6 +93,7 @@ src/
 │  │  └─ signout/route.ts        # POST → signOut → /login
 │  └─ (app)/                     # ЗАХИЩЕНІ сторінки (під layout з AppShell)
 │     ├─ layout.tsx              # auth-guard, processRecurring(), fetch profile/categories/assets/rates → AppShell
+│     ├─ loading.tsx             # скелет вмісту під час переходу між сторінками (меню/шапка лишаються)
 │     ├─ dashboard, expenses, income, recurring, budget,
 │     │  goals, assets, credits, analytics, reports, help, settings
 ├─ components/
@@ -108,6 +109,10 @@ src/
    ├─ actions/                   # СЕРВЕРНІ ЕКШЕНИ ("use server"): expenses, incomes, recurring, budgets, goals, assets, credits, profile
    ├─ server/                    # НЕ-"use server" серверні модулі: session (кешовані user/profile), daily-processing, recurring, credit-payments, net-worth, rates (можуть приймати несеріалізовані аргументи)
    ├─ queries.ts                 # серверні читання/агрегації (приймають base+rates для конвертації)
+   ├─ fetch-all.ts               # fetchAll: усі рядки частинами (обхід ліміту 1000 рядків на запит)
+   ├─ money.ts                   # гроші: rescheduleNextRun, toAssetAmount, netWorthTotal, cardDebtTotal
+   ├─ periods.ts                 # «той самий період» минулого місяця/року, прогноз до кінця місяця
+   ├─ safe-redirect.ts           # safeRedirectPath: лише внутрішні шляхи після входу (без open redirect)
    ├─ category-filter.ts         # фільтр витрат за категорією/підкатегорією (витрати + аналітика)
    ├─ analytics.ts               # чисті функції аналітики: monthsBack, buildComparison
    ├─ budget.ts                  # план/факт бюджету: computeBudget, plannedTotal (сторінка «Бюджет» + дашборд)
@@ -166,7 +171,8 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - **`matcher` у proxy виключає** статику, зображення, **`manifest.webmanifest` і `sw.js`** —
   інакше PWA-файли редіректились би на /login (це вже фіксилось).
 - OAuth-флоу: кнопка → `signInWithOAuth` → Supabase → `/auth/callback` (route handler:
-  `exchangeCodeForSession`) → `/dashboard`.
+  `exchangeCodeForSession`) → `/dashboard` або `?next=` — лише внутрішній шлях
+  (`safeRedirectPath`; зовнішні `https://…`, `//…`, `/…` відкидаються). Те саме у формі входу.
 - Для локального тесту зручно вимкнути підтвердження email у Supabase
   (Authentication → Email → Confirm email = off) або створити користувача з
   «Auto Confirm User».
@@ -240,6 +246,8 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - Графік (`getNetWorthSeries(userId, base)`) показує лише `converted = true` у поточній
   базовій валюті. Старі снапшоти (до виправлення складали суми різних валют як є й не
   віднімали борги) лишаються в БД, але не показуються — історія починається з виправлення.
+  Береться **останні** 180 знімків (desc + reverse), а не перші — інакше через пів року
+  графік «застигав» на найстаріших даних.
 - `applyAssetDeltas({ [assetId]: delta })` — дельти **у валюті активу**.
 
 ### Витрати
@@ -307,16 +315,18 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - Дедлайн → підказка «скільки відкладати щомісяця».
 
 ### Активи
-- CRUD + **`±` коригування** (`adjustAsset(id, delta)`, clamp ≥0) — додати/зняти без
-  нового запису.
+- CRUD + **`±` коригування** (`adjustAsset(id, delta)`) — додати/зняти без нового запису.
+  Зняти більше, ніж є (з урахуванням `credit_limit`), не можна — повертається помилка,
+  а не тихе обрізання до нуля.
 - **Переказ** (`transferBetweenAssets`): знімає з джерела, додає на призначення;
   різні валюти → сума конвертується (`convertBetween`), редагується під реальний курс.
   Переказ **НЕ** є витратою/доходом — лише рух між активами.
 - Кнопки дій **завжди видимі** (раніше були hover-only → невидимі на тач/PWA).
 - **Кредитний ліміт (`credit_limit`, овердрафт):** баланс може йти у мінус до
-  `−credit_limit`; «доступно» = `value + credit_limit`. Поріг застосовано в
-  `adjustAsset` і `transferBetweenAssets` (`Math.max(-limit, …)`). Витрати
-  (`applyAssetDeltas`) **не** клампляться. Відʼємний `value` природно зменшує Net Worth.
+  `−credit_limit`; «доступно» = `value + credit_limit`. `adjustAsset` і
+  `transferBetweenAssets` **відхиляють** операцію нижче `−credit_limit`. Витрати
+  (`applyAssetDeltas`) **не** обмежуються. Відʼємний `value` природно зменшує Net Worth.
+- Шапка «Активи»: чистий капітал = активи − борги (підказка «Активи X − борги Y»).
 
 ### Кредити
 - Залишок зменшується платежами (`addCreditPayment`). `payment_day` (опц.) → найближча
@@ -327,9 +337,14 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
   витрату-платіж (`payment_category_id`), списує з `payment_asset_id`, зменшує
   `remaining_amount`, просуває `next_payment` (догенеровує пропущені місяці).
 - Загальний борг віднімається від Net Worth.
+- Сторінка й дашборд-віджет показують **окремо** «Борг за кредитами» і «Мінус на картках»
+  (сума відʼємних балансів активів, `cardDebtTotal`).
 
 ### Аналітика
 - Перемикач тиждень/місяць/рік + навігація по місяцях (`monthOffset`).
+- **Чесне порівняння:** поточний (неповний) місяць/рік порівнюється з **тими самими днями**
+  минулого місяця/року (`samePeriodPrevMonth`/`samePeriodPrevYear` у `lib/periods.ts`),
+  підпис «Порівняння: 1–21 жовтня». Завершені періоди — з повним попереднім.
 - Графіки: по днях/місяцях (bar), donut, топ категорій.
 - **Порівняння за місяцями:** вибір категорії (або «Усі») + опц. **підкатегорії**
   (або «Без підкатегорії») + довільний набір з 12 місяців; мультилінійний тренд /
@@ -338,7 +353,7 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 ### Звіти + PDF
 - `/reports`: період (місяць/минулий/рік/власний діапазон) → зведення, розподіл за
-  категоріями/джерелами, деталізація витрат.
+  категоріями/джерелами, деталізація витрат. Дані — `fetchAll` (за рік легко понад 1000).
 - **PDF = друк браузера** (`window.print()` + `@media print` у globals.css, що форсує
   світлу палітру; sidebar/topbar/nav мають `print:!hidden`). **Без бібліотек.**
 
@@ -347,6 +362,16 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
   = `prefs?.[key] !== false` (за замовчуванням усе ввімкнено).
 - `DashboardCustomizer` зберігає `profiles.dashboard_prefs` (jsonb) → **синхрон між
   пристроями**. Дашборд гейтить кожну картку/блок через `show(key)`.
+- «Витрати місяця» порівнюються з тими самими днями минулого місяця (`previousSamePeriod`
+  з `getMonthComparison`); інсайти — з прогнозом до кінця місяця (`monthEndForecast`).
+- Прогрес цілей з привʼязаним активом — у валюті цілі (`convertBetween`).
+
+### Налаштування
+- Профіль (імʼя, базова валюта), тема, встановлення PWA.
+- **Категорії** (`components/settings/category-manager.tsx`): перейменування, видалення
+  (витрати лишаються без категорії/підкатегорії, ліміти бюджету видаляються), нові
+  категорії й підкатегорії.
+- **Експорт CSV** — уся історія витрат (`fetchAll`).
 
 ### PWA
 - `manifest.ts` + іконки + мінімальний `public/sw.js` (network-first), реєстрація
@@ -391,6 +416,17 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - **`or(...)` у PATCH** (PostgREST 12) по `auto_processed_on` падав з 42703 «column does not
   exist» — для атомарних умовних оновлень використовуй прості фільтри (`is`, `lt`, `eq`).
 - **`new Date()`** у коді застосунку — ОК (обмеження стосувалось лише Workflow-скриптів).
+- **Ліміт 1000 рядків на запит:** Supabase (PostgREST `max_rows`) **мовчки** обрізає
+  відповідь — найстаріші записи просто зникали б зі списків, аналітики, звітів і CSV.
+  Будь-який запит без `.limit()`, що може перевищити 1000 рядків (історія витрат/доходів,
+  діапазони дат), роби через `fetchAll` (`lib/fetch-all.ts`): `select(…, { count: "exact" })`,
+  **стабільний порядок** з унікальним полем наприкінці (`.order("id")`) і `.range(from, to)`.
+  Перша сторінка дає кількість, решта вантажиться паралельно.
+- **`order(…, { ascending: true }).limit(N)`** бере **найстаріші** N — для «останніх N»
+  сортуй desc і розвертай.
+- **Кнопки дій у рядках списків:** ховати до hover лише на пристроях з мишею —
+  `[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100
+  [@media(hover:hover)]:focus-within:opacity-100`; на тач/PWA вони завжди видимі.
 
 ---
 
@@ -416,7 +452,7 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 ---
 
-*Технічний борг / можливі покращення: при десятках тисяч записів сторінки
-«Витрати»/«Аналітика» вантажать усі записи на клієнт — тоді варто перейти на
-серверну агрегацію/пагінацію. Снапшоти Net Worth зберігаються «як є» (історичні
+*Технічний борг / можливі покращення: сторінки «Витрати»/«Аналітика» вантажать усю
+історію на клієнт (частинами, тож нічого не губиться); при десятках тисяч записів
+варто перейти на серверну агрегацію й посторінковий список. Снапшоти Net Worth зберігаються «як є» (історичні
 значення не переконвертовуються при зміні базової валюти).*
