@@ -1,51 +1,48 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/app/app-shell";
-import { processRecurring } from "@/lib/server/recurring";
-import { processCreditPayments } from "@/lib/server/credit-payments";
+import { getCurrentUserId, getProfile } from "@/lib/server/session";
+import { runDailyProcessing } from "@/lib/server/daily-processing";
 import { getRates } from "@/lib/server/rates";
-import type { Asset, ExpenseCategory, Profile } from "@/lib/types";
+import type { Asset, ExpenseCategory } from "@/lib/types";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const userId = await getCurrentUserId();
+  if (!userId) redirect("/login");
 
-  // Ліниве авто-нарахування повторюваних витрат і платежів по кредитах
-  // (до читання активів, щоб баланси були актуальні).
+  const supabase = await createClient();
+  const loadAssets = () =>
+    supabase.from("assets").select("*").eq("user_id", userId).order("value", { ascending: false });
+
+  // Профіль, категорії й активи — паралельно (профіль спільний зі сторінкою через React cache).
+  const [profile, { data: categories }, assetsRes] = await Promise.all([
+    getProfile(userId),
+    supabase
+      .from("expense_categories")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true }),
+    loadAssets(),
+  ]);
+  let assets = assetsRes.data;
+
+  // Авто-нарахування підписок і платежів по кредитах — раз на день.
+  // Якщо щось згенеровано, баланси активів змінились — перечитуємо їх.
   try {
-    await processRecurring(user.id);
-    await processCreditPayments(user.id);
+    if (await runDailyProcessing(userId, profile)) assets = (await loadAssets()).data;
   } catch {
     // не блокуємо застосунок, якщо щось пішло не так
   }
 
-  const [{ data: profile }, { data: categories }, { data: assets }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
-    supabase
-      .from("expense_categories")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("assets")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("value", { ascending: false }),
-  ]);
-
-  const base = (profile as Profile)?.base_currency ?? "UAH";
-  const rates = await getRates(base);
+  const rates = await getRates(profile?.base_currency ?? "UAH");
 
   return (
     <AppShell
-      profile={(profile as Profile) ?? null}
+      profile={profile}
       categories={(categories as ExpenseCategory[]) ?? []}
       assets={(assets as Asset[]) ?? []}
       rates={rates}

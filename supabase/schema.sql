@@ -21,6 +21,9 @@ create table if not exists public.profiles (
 );
 -- Для вже створеної БД:
 alter table public.profiles add column if not exists dashboard_prefs jsonb;
+-- Дата (UTC) останнього авто-нарахування підписок і кредитів — щоб запускати його
+-- раз на день, а не на кожному переході (див. src/lib/server/daily-processing.ts).
+alter table public.profiles add column if not exists auto_processed_on date;
 
 -- Категорії витрат (parent_id != null → це підкатегорія)
 create table if not exists public.expense_categories (

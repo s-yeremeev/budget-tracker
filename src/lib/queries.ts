@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { monthBounds, toISODate } from "@/lib/utils";
 import { convert, type Rates } from "@/lib/currency";
 import { plannedTotal } from "@/lib/budget";
+import { getCurrentUserId } from "@/lib/server/session";
 import type {
   Asset,
   AssetCategory,
@@ -9,12 +10,9 @@ import type {
   ExpenseWithCategory,
 } from "@/lib/types";
 
-export async function getUserId() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
+/** Id поточного користувача (спільний з layout у межах рендера — див. lib/server/session). */
+export function getUserId() {
+  return getCurrentUserId();
 }
 
 /** Активи + категорії + загальний Net Worth (у базовій валюті). */

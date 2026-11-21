@@ -31,7 +31,7 @@ function addMonth(iso: string, day: number): string {
  * у яких next_run <= сьогодні (догенеровуючи пропущені місяці).
  * Викликається на сервері під час завантаження застосунку.
  */
-export async function processRecurring(userId: string) {
+export async function processRecurring(userId: string): Promise<boolean> {
   const supabase = await createClient();
   const todayISO = toISODate(new Date());
 
@@ -42,7 +42,7 @@ export async function processRecurring(userId: string) {
     .eq("active", true)
     .lte("next_run", todayISO);
 
-  if (!items || items.length === 0) return;
+  if (!items || items.length === 0) return false;
 
   const expenseRows: Record<string, unknown>[] = [];
   const deltas: Record<string, number> = {};
@@ -78,7 +78,7 @@ export async function processRecurring(userId: string) {
     updates.push({ id: r.id, next_run: run });
   }
 
-  if (expenseRows.length === 0) return;
+  if (expenseRows.length === 0) return false;
 
   await supabase.from("expenses").insert(expenseRows);
   await Promise.all(
@@ -91,4 +91,5 @@ export async function processRecurring(userId: string) {
   );
   await applyAssetDeltas(deltas);
   if (Object.keys(deltas).length) await recomputeNetWorth(userId);
+  return true;
 }

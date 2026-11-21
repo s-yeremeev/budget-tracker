@@ -1,20 +1,11 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { SettingsView } from "@/components/settings/settings-view";
-import type { Profile } from "@/lib/types";
+import { getCurrentUserId, getProfile } from "@/lib/server/session";
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const userId = await getCurrentUserId();
+  if (!userId) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  return <SettingsView profile={(profile as Profile) ?? null} />;
+  const profile = await getProfile(userId); // спільний з layout запит
+  return <SettingsView profile={profile} />;
 }

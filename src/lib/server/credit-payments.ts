@@ -18,7 +18,7 @@ function addMonth(iso: string, day: number): string {
  * та просуває next_payment (догенеровуючи пропущені місяці). Викликається на
  * сервері під час завантаження застосунку.
  */
-export async function processCreditPayments(userId: string) {
+export async function processCreditPayments(userId: string): Promise<boolean> {
   const supabase = await createClient();
   const todayISO = toISODate(new Date());
 
@@ -31,7 +31,7 @@ export async function processCreditPayments(userId: string) {
     .not("next_payment", "is", null)
     .lte("next_payment", todayISO);
 
-  if (!credits || credits.length === 0) return;
+  if (!credits || credits.length === 0) return false;
 
   const expenseRows: Record<string, unknown>[] = [];
   const deltas: Record<string, number> = {};
@@ -73,7 +73,7 @@ export async function processCreditPayments(userId: string) {
     updates.push({ id: c.id, remaining_amount: remaining, next_payment: remaining > 0 ? run : null });
   }
 
-  if (expenseRows.length === 0) return;
+  if (expenseRows.length === 0) return false;
 
   await supabase.from("expenses").insert(expenseRows);
   await Promise.all(
@@ -86,4 +86,5 @@ export async function processCreditPayments(userId: string) {
   );
   await applyAssetDeltas(deltas);
   if (Object.keys(deltas).length) await recomputeNetWorth(userId);
+  return true;
 }

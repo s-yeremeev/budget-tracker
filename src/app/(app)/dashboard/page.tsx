@@ -9,7 +9,7 @@ import { ExpenseList } from "@/components/expenses/expense-list";
 import { NetWorthChart, CategoryDonut } from "@/components/charts/charts";
 import { AddExpenseButton } from "@/components/expenses/add-expense-button";
 import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer";
-import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/server/session";
 import {
   getUserId,
   getAssetsData,
@@ -36,7 +36,6 @@ import {
   formatDateUk,
   cn,
 } from "@/lib/utils";
-import type { Profile } from "@/lib/types";
 
 export default async function DashboardPage() {
   const userId = await getUserId();
@@ -44,15 +43,10 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const { start, end } = monthBounds(now);
-  const supabase = await createClient();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("base_currency, dashboard_prefs")
-    .eq("id", userId)
-    .single();
-  const base = (profile as Pick<Profile, "base_currency">)?.base_currency ?? "UAH";
-  const prefs = (profile as Pick<Profile, "dashboard_prefs">)?.dashboard_prefs ?? null;
+  const profile = await getProfile(userId); // спільний з layout запит
+  const base = profile?.base_currency ?? "UAH";
+  const prefs = profile?.dashboard_prefs ?? null;
   const rates = await getRates(base);
 
   const [

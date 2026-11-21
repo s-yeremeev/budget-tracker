@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Rates } from "@/lib/currency";
 
 // Запасні курси (приблизні, C за 1 USD) — на випадок недоступності API.
@@ -15,10 +16,11 @@ function fallbackRates(base: string): Rates {
 }
 
 /**
- * Курси base→currency. Кешується на 6 годин (Next fetch cache).
+ * Курси base→currency. Кешується на 6 годин (Next fetch cache) і один раз на рендер
+ * (React cache — layout і сторінки викликають з тим самим base).
  * Джерело: open.er-api.com (без ключа). За помилки — запасні курси.
  */
-export async function getRates(base: string): Promise<Rates> {
+export const getRates = cache(async (base: string): Promise<Rates> => {
   try {
     const res = await fetch(`https://open.er-api.com/v6/latest/${base}`, {
       next: { revalidate: 21600 },
@@ -33,4 +35,4 @@ export async function getRates(base: string): Promise<Rates> {
     // ignore — використаємо запасні
   }
   return fallbackRates(base);
-}
+});

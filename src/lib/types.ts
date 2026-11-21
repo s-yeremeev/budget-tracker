@@ -8,6 +8,8 @@ export interface Profile {
   display_name: string | null;
   base_currency: string;
   dashboard_prefs: Record<string, boolean> | null;
+  /** Дата (UTC) останнього авто-нарахування; відсутнє, поки не застосовано міграцію. */
+  auto_processed_on?: string | null;
   created_at: string;
 }
 

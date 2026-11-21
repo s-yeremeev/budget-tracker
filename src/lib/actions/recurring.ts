@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { nextOccurrence } from "@/lib/server/recurring";
+import { resetDailyProcessing } from "@/lib/server/daily-processing";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -46,12 +47,13 @@ export async function createRecurring(input: RecurringInput) {
     next_run,
   });
   if (error) return { error: error.message };
+  await resetDailyProcessing(supabase, userId); // нарахування на сьогодні — на наступному завантаженні
   revalidateAll();
   return { error: null };
 }
 
 export async function updateRecurring(id: string, input: RecurringInput) {
-  const { supabase } = await requireUser();
+  const { supabase, userId } = await requireUser();
   const next_run = nextOccurrence(input.day_of_month, new Date());
   const { error } = await supabase
     .from("recurring_expenses")
@@ -68,14 +70,16 @@ export async function updateRecurring(id: string, input: RecurringInput) {
     })
     .eq("id", id);
   if (error) return { error: error.message };
+  await resetDailyProcessing(supabase, userId);
   revalidateAll();
   return { error: null };
 }
 
 export async function toggleRecurring(id: string, active: boolean) {
-  const { supabase } = await requireUser();
+  const { supabase, userId } = await requireUser();
   const { error } = await supabase.from("recurring_expenses").update({ active }).eq("id", id);
   if (error) return { error: error.message };
+  if (active) await resetDailyProcessing(supabase, userId);
   revalidateAll();
   return { error: null };
 }
