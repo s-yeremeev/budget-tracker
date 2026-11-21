@@ -32,7 +32,7 @@ function addMonth(iso: string, day: number): string {
  * Викликається на сервері під час завантаження застосунку.
  */
 export async function processRecurring(userId: string): Promise<boolean> {
-  const supabase = await createClient();
+  const supabase = await createClient({ fresh: true });
   const todayISO = toISODate(new Date());
 
   const { data: items } = await supabase

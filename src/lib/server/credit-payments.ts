@@ -19,7 +19,7 @@ function addMonth(iso: string, day: number): string {
  * сервері під час завантаження застосунку.
  */
 export async function processCreditPayments(userId: string): Promise<boolean> {
-  const supabase = await createClient();
+  const supabase = await createClient({ fresh: true });
   const todayISO = toISODate(new Date());
 
   const { data: credits } = await supabase

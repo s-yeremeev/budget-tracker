@@ -7,7 +7,7 @@ import { toISODate } from "@/lib/utils";
  * привʼязаних до активів.
  */
 export async function recomputeNetWorth(userId: string) {
-  const supabase = await createClient();
+  const supabase = await createClient({ fresh: true });
   const { data: assets } = await supabase
     .from("assets")
     .select("value")
@@ -26,7 +26,7 @@ export async function recomputeNetWorth(userId: string) {
  * Додатна дельта збільшує баланс (повернення), відʼємна — зменшує (списання).
  */
 export async function applyAssetDeltas(deltas: Record<string, number>) {
-  const supabase = await createClient();
+  const supabase = await createClient({ fresh: true });
   const ids = Object.keys(deltas).filter((id) => deltas[id] !== 0);
   if (ids.length === 0) return;
 

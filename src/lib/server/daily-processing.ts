@@ -16,7 +16,7 @@ export async function runDailyProcessing(userId: string, profile: DayMarker): Pr
   const action = dailyProcessingAction(profile, today);
   if (action === "skip") return false;
 
-  const supabase = await createClient();
+  const supabase = await createClient({ fresh: true });
   if (action === "claim") {
     // Атомарно «забираємо» день: UPDATE з умовою на попереднє значення — з паралельних
     // запитів рядок оновить лише один, решта отримають 0 рядків і пропустять обробку.
