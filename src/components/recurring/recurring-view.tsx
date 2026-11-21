@@ -12,7 +12,7 @@ import { useApp } from "@/components/app/app-shell";
 import { RecurringForm } from "@/components/recurring/recurring-form";
 import { deleteRecurring, toggleRecurring } from "@/lib/actions/recurring";
 import { convert } from "@/lib/currency";
-import { formatCurrency, formatDateUk, cn } from "@/lib/utils";
+import { formatCurrency, formatDateUk, cn, pluralUk } from "@/lib/utils";
 import type { RecurringExpense } from "@/lib/types";
 
 export function RecurringView({ items }: { items: RecurringExpense[] }) {
@@ -23,6 +23,7 @@ export function RecurringView({ items }: { items: RecurringExpense[] }) {
   const monthlyTotal = items
     .filter((r) => r.active)
     .reduce((s, r) => s + convert(Number(r.amount), r.currency, base, rates), 0);
+  const activeCount = items.filter((r) => r.active).length;
 
   function add() {
     setEditing(null);
@@ -40,7 +41,8 @@ export function RecurringView({ items }: { items: RecurringExpense[] }) {
                 {formatCurrency(monthlyTotal, base)}
               </p>
               <p className="mt-0.5 text-xs text-fg-subtle">
-                {items.filter((r) => r.active).length} активних шаблонів
+                {activeCount}{" "}
+                {pluralUk(activeCount, ["активний шаблон", "активні шаблони", "активних шаблонів"])}
               </p>
             </div>
             <Button onClick={add}>

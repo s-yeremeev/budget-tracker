@@ -97,6 +97,20 @@ export function daysUntil(date: Date, from: Date = new Date()): number {
   return Math.round((a.getTime() - b.getTime()) / 86400000);
 }
 
+/**
+ * Українська форма слова для кількості n: [одна, кілька, багато].
+ * pluralUk(1, ["транзакція", "транзакції", "транзакцій"]) → "транзакція";
+ * 2–4 (крім 12–14) → «транзакції»; 0, 5–20, 11–14 тощо → «транзакцій».
+ */
+export function pluralUk(n: number, [one, few, many]: [string, string, string]): string {
+  const abs = Math.abs(Math.trunc(n));
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
 /** Ініціали для аватара. */
 export function initials(name: string | null | undefined): string {
   if (!name) return "?";

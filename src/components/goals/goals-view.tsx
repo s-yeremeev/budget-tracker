@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { GoalForm } from "@/components/goals/goal-form";
 import { deleteGoal, addGoalContribution } from "@/lib/actions/goals";
-import { formatCurrency, formatDateUk, cn } from "@/lib/utils";
+import { formatCurrency, formatDateUk, cn, pluralUk } from "@/lib/utils";
 import type { Goal, GoalWithAsset } from "@/lib/types";
 
 export function GoalsView({ goals }: { goals: GoalWithAsset[] }) {
@@ -30,7 +30,9 @@ export function GoalsView({ goals }: { goals: GoalWithAsset[] }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-fg-muted">
-          {goals.length ? `${goals.length} ${plural(goals.length)}` : "Постав ціль і відстежуй прогрес"}
+          {goals.length
+            ? `${goals.length} ${pluralUk(goals.length, ["ціль", "цілі", "цілей"])}`
+            : "Постав ціль і відстежуй прогрес"}
         </p>
         <Button onClick={add}>
           <Plus className="h-4 w-4" /> Нова ціль
@@ -189,12 +191,4 @@ function GoalCard({ goal, onEdit }: { goal: GoalWithAsset; onEdit: () => void })
       </CardContent>
     </Card>
   );
-}
-
-function plural(n: number) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "ціль";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "цілі";
-  return "цілей";
 }

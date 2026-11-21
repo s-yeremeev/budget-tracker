@@ -9,7 +9,7 @@ import { ExpenseList } from "@/components/expenses/expense-list";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { FILTER_ALL, FILTER_NONE, matchesCategoryFilter, subcategoriesOf } from "@/lib/category-filter";
-import { formatCurrency, formatDateUk, monthBounds, toISODate, cn } from "@/lib/utils";
+import { formatCurrency, formatDateUk, monthBounds, toISODate, cn, pluralUk } from "@/lib/utils";
 import type { ExpenseCategory, ExpenseWithCategory } from "@/lib/types";
 
 type Period = "month" | "prev" | "year" | "all";
@@ -105,7 +105,9 @@ export function ExpensesView({
         </div>
         <div className="flex-1" />
         <div className="text-right">
-          <p className="text-xs text-fg-subtle">{filtered.length} транзакцій</p>
+          <p className="text-xs text-fg-subtle">
+            {filtered.length} {pluralUk(filtered.length, ["транзакція", "транзакції", "транзакцій"])}
+          </p>
           <p className="text-lg font-bold text-fg">{formatCurrency(total, base)}</p>
         </div>
       </div>

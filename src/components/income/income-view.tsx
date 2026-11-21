@@ -11,7 +11,7 @@ import { IncomeForm } from "@/components/income/income-form";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { deleteIncome } from "@/lib/actions/incomes";
-import { formatCurrency, formatDateUk, monthBounds, toISODate, cn } from "@/lib/utils";
+import { formatCurrency, formatDateUk, monthBounds, toISODate, cn, pluralUk } from "@/lib/utils";
 import type { IncomeWithAsset, Income } from "@/lib/types";
 
 type Period = "month" | "prev" | "year" | "all";
@@ -77,7 +77,9 @@ export function IncomeView({ incomes }: { incomes: IncomeWithAsset[] }) {
         </div>
         <div className="flex-1" />
         <div className="text-right">
-          <p className="text-xs text-fg-subtle">{filtered.length} надходжень</p>
+          <p className="text-xs text-fg-subtle">
+            {filtered.length} {pluralUk(filtered.length, ["надходження", "надходження", "надходжень"])}
+          </p>
           <p className="text-lg font-bold text-success">+{formatCurrency(total, base)}</p>
         </div>
         <Button onClick={add}>
