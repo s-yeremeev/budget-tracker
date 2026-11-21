@@ -37,8 +37,11 @@
 - `Home` → **`House`**
 - `CheckCircle2` → **`CircleCheckBig`**
 
-Компонент `src/components/ui/icon.tsx` рендерить іконку за рядковою назвою і
-**падає на `Tag`**, якщо назви немає — тож невідома назва не ламає білд, але іконка буде неправильна. Перевіряй назви: `node -e "console.log('X' in require('lucide-react').icons)"`.
+Компонент `src/components/ui/icon.tsx` рендерить іконку за рядковою назвою з **явного
+списку `ICONS`** і **падає на `Tag`**, якщо назви там немає. Не імпортуй `icons` з
+lucide-react — це весь набір (~1600 іконок, ~165 KB gzip у кожній сторінці). Нова
+назва (у `CATEGORY_ICONS`/`GOAL_ICONS`, меню, `icon="…"`) → додай її в `ICONS`;
+`icon.test.ts` сканує код і `schema.sql` і впаде, якщо забудеш. Стара `Home` → `House`.
 
 ---
 
@@ -103,6 +106,7 @@ src/
 │  ├─ auth/ theme/ pwa/          # форма входу, тема, встановлення PWA + реєстрація SW
 │  ├─ <feature>/                 # expenses, income, recurring, budget, goals, assets, credits, analytics, reports, dashboard
 │  ├─ charts/charts.tsx          # NetWorthChart(area), DailyBarChart, MultiLineChart, CategoryDonut
+│  ├─ charts/lazy-charts.tsx     # ті самі графіки через next/dynamic (ssr:false) — імпортуй ЗВІДСИ
 │  └─ ui/                        # Button, Card, Input/Select/Textarea/Label, Modal, StatCard, EmptyState, Icon, TagInput
 └─ lib/
    ├─ supabase/                  # client (browser), server (RSC/actions), middleware (proxy-сесія), config
@@ -110,6 +114,7 @@ src/
    ├─ server/                    # НЕ-"use server" серверні модулі: session (кешовані user/profile), daily-processing, recurring, credit-payments, net-worth, rates (можуть приймати несеріалізовані аргументи)
    ├─ queries.ts                 # серверні читання/агрегації (приймають base+rates для конвертації)
    ├─ fetch-all.ts               # fetchAll: усі рядки частинами (обхід ліміту 1000 рядків на запит)
+   ├─ expense-refs.ts            # тонкі витрати: колонки для списку/аналітики + withRefs (категорія/актив за id)
    ├─ money.ts                   # гроші: rescheduleNextRun, toAssetAmount, netWorthTotal, cardDebtTotal
    ├─ periods.ts                 # «той самий період» минулого місяця/року, прогноз до кінця місяця
    ├─ safe-redirect.ts           # safeRedirectPath: лише внутрішні шляхи після входу (без open redirect)
@@ -263,6 +268,9 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
   `"all"` / `"none"` = «Без підкатегорії» / id), тег, пошук (коментар, категорія,
   підкатегорія). Логіка — `matchesCategoryFilter` у `lib/category-filter.ts`.
   Підсумок зверху = сума відфільтрованих витрат.
+- **Тонкі дані:** сторінка шле лише `EXPENSE_ITEM_COLUMNS` (без копії категорії й активу в
+  кожному рядку, ~2,5× менше); `ExpensesView` підставляє їх з `useApp()` через `withRefs`.
+  Категорії сторінка окремо не вантажить — бере з контексту (їх уже вантажить layout).
 
 ### Доходи
 - Дзеркало витрат: опц. **зарахування на актив** (`asset.value += asset_amount`) + recompute.
@@ -342,6 +350,7 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 ### Аналітика
 - Перемикач тиждень/місяць/рік + навігація по місяцях (`monthOffset`).
+- Дані — лише `ANALYTICS_EXPENSE_COLUMNS` (категорія підставляється з `useApp()`, ~4× менше).
 - **Чесне порівняння:** поточний (неповний) місяць/рік порівнюється з **тими самими днями**
   минулого місяця/року (`samePeriodPrevMonth`/`samePeriodPrevYear` у `lib/periods.ts`),
   підпис «Порівняння: 1–21 жовтня». Завершені періоди — з повним попереднім.
@@ -424,6 +433,9 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
   Перша сторінка дає кількість, решта вантажиться паралельно.
 - **`order(…, { ascending: true }).limit(N)`** бере **найстаріші** N — для «останніх N»
   сортуй desc і розвертай.
+- **Графіки** імпортуй з `components/charts/lazy-charts` (окремий шматок ~110 KB gzip, що
+  вантажиться після показу сторінки; заглушка тієї ж висоти). `ssr: false` дозволено лише
+  в клієнтському модулі, тому серверні сторінки не можуть робити `dynamic` самі.
 - **Кнопки дій у рядках списків:** ховати до hover лише на пристроях з мишею —
   `[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100
   [@media(hover:hover)]:focus-within:opacity-100`; на тач/PWA вони завжди видимі.
