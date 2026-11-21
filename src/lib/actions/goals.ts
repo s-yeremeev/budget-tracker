@@ -1,16 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Не авторизовано");
-  return { supabase, userId: user.id };
-}
+import { requireUser } from "@/lib/server/require-user";
 
 export interface GoalInput {
   name: string;

@@ -1,19 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/server/require-user";
 import { recomputeNetWorth, applyAssetDeltas } from "@/lib/server/net-worth";
 import { assetAmountsFor, appliedAssetAmount } from "@/lib/server/asset-amounts";
 import { withColumnFallback } from "@/lib/server/db-compat";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Не авторизовано");
-  return { supabase, userId: user.id };
-}
 
 function revalidateAll() {
   revalidatePath("/dashboard");

@@ -2,29 +2,16 @@
 // React `cache` гарантує один виклик на рендер (layout і сторінка рендеряться паралельно).
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { verifiedUserId } from "@/lib/supabase/claims";
 import type { Profile } from "@/lib/types";
 
 /**
- * Id поточного користувача.
- * `getClaims()` перевіряє JWT локально за публічним ключем проєкту (JWKS кешується
- * на 10 хв), тож зазвичай обходиться без запиту до Supabase Auth. Для проєктів із
- * симетричним ключем він сам звертається до Auth — як і раніше. Повну перевірку сесії
- * (та оновлення токена) і далі робить proxy на кожному запиті.
- * Якщо щось пішло не так — фолбек на `getUser()`.
+ * Id поточного користувача — локальна перевірка JWT (див. `verifiedUserId`).
+ * Оновлення токена в cookies бере на себе proxy, що виконується перед рендером.
  */
 export const getCurrentUserId = cache(async (): Promise<string | null> => {
   const supabase = await createClient();
-  try {
-    const { data, error } = await supabase.auth.getClaims();
-    const sub = data?.claims?.sub;
-    if (!error && typeof sub === "string" && sub) return sub;
-  } catch {
-    // ігноруємо — перевіримо через getUser нижче
-  }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
+  return verifiedUserId(supabase.auth);
 });
 
 /** Профіль користувача — один запит на рендер. */

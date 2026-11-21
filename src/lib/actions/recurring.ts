@@ -1,20 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/server/require-user";
 import { nextOccurrence } from "@/lib/server/recurring";
 import { resetDailyProcessing } from "@/lib/server/daily-processing";
 import { rescheduleNextRun } from "@/lib/money";
 import { toISODate } from "@/lib/utils";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Не авторизовано");
-  return { supabase, userId: user.id };
-}
 
 function revalidateAll() {
   revalidatePath("/recurring");

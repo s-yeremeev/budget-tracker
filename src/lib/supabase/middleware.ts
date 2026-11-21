@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
+import { verifiedUserId } from "./claims";
 
 /** Маршрути, доступні без авторизації. */
 const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/_next", "/favicon.ico"];
@@ -34,19 +35,15 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // ВАЖЛИВО: getUser() звертається до Supabase Auth і оновлює токен.
-  let user = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // Supabase недоступний / не налаштований — вважаємо неавторизованим.
-  }
+  // ВАЖЛИВО: одразу після створення клієнта. Перевіряє JWT локально (getClaims) і за
+  // потреби оновлює токен (нові cookies — через setAll вище). Без запиту до Supabase Auth
+  // на кожному переході; фолбек на getUser — див. verifiedUserId.
+  const userId = await verifiedUserId(supabase.auth);
 
   const { pathname } = request.nextUrl;
 
   // Неавторизований на захищеному маршруті → /login
-  if (!user && !isPublic(pathname)) {
+  if (!userId && !isPublic(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
@@ -54,7 +51,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Авторизований на сторінці входу → /dashboard
-  if (user && (pathname === "/login" || pathname === "/signup")) {
+  if (userId && (pathname === "/login" || pathname === "/signup")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
