@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/components/app/app-shell";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAll } from "@/lib/fetch-all";
 import { convert } from "@/lib/currency";
 import { formatCurrency, formatDateUk, monthBounds, toISODate, cn } from "@/lib/utils";
 
@@ -57,22 +58,34 @@ export function ReportView() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: exp }, { data: inc }] = await Promise.all([
-      supabase
-        .from("expenses")
-        .select("amount, currency, spent_at, comment, category:expense_categories!expenses_category_id_fkey(name, color, icon)")
-        .gte("spent_at", range.start)
-        .lte("spent_at", range.end)
-        .order("spent_at", { ascending: false }),
-      supabase
-        .from("incomes")
-        .select("amount, currency, received_at, source")
-        .gte("received_at", range.start)
-        .lte("received_at", range.end)
-        .order("received_at", { ascending: false }),
+    // Частинами: за рік легко набирається понад 1000 витрат (ліміт одного запиту).
+    const [exp, inc] = await Promise.all([
+      fetchAll((from, to) =>
+        supabase
+          .from("expenses")
+          .select(
+            "amount, currency, spent_at, comment, category:expense_categories!expenses_category_id_fkey(name, color, icon)",
+            { count: "exact" },
+          )
+          .gte("spent_at", range.start)
+          .lte("spent_at", range.end)
+          .order("spent_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      ),
+      fetchAll((from, to) =>
+        supabase
+          .from("incomes")
+          .select("amount, currency, received_at, source", { count: "exact" })
+          .gte("received_at", range.start)
+          .lte("received_at", range.end)
+          .order("received_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      ),
     ]);
-    setExpenses((exp as unknown as ExpRow[]) ?? []);
-    setIncomes((inc as unknown as IncRow[]) ?? []);
+    setExpenses(exp as unknown as ExpRow[]);
+    setIncomes(inc as unknown as IncRow[]);
     setLoading(false);
   }, [supabase, range.start, range.end]);
 

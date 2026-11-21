@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/components/app/app-shell";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAll } from "@/lib/fetch-all";
 import { setBudget, copyBudgetFromPrevMonth } from "@/lib/actions/budgets";
 import { convert } from "@/lib/currency";
 import { computeBudget, type BudgetRow as Row } from "@/lib/budget";
@@ -37,19 +38,23 @@ export function BudgetView() {
   const load = useCallback(async () => {
     setLoading(true);
     const { start, end } = monthBounds(ref);
-    const [{ data: budgets }, { data: expenses }] = await Promise.all([
+    const [{ data: budgets }, expenses] = await Promise.all([
       supabase.from("budgets").select("category_id, amount, currency").eq("period", period),
-      supabase
-        .from("expenses")
-        .select("category_id, subcategory_id, amount, currency")
-        .gte("spent_at", start)
-        .lte("spent_at", end),
+      fetchAll((from, to) =>
+        supabase
+          .from("expenses")
+          .select("category_id, subcategory_id, amount, currency", { count: "exact" })
+          .gte("spent_at", start)
+          .lte("spent_at", end)
+          .order("id")
+          .range(from, to),
+      ),
     ]);
 
     const summary = computeBudget(
       categories,
       (budgets ?? []) as { category_id: string; amount: number; currency: string }[],
-      (expenses ?? []) as { category_id: string | null; subcategory_id: string | null; amount: number; currency: string }[],
+      expenses as { category_id: string | null; subcategory_id: string | null; amount: number; currency: string }[],
       (amount, cur) => convert(amount, cur, currency, rates),
     );
     setData(summary.rows);

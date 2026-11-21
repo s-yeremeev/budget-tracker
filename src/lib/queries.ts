@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { monthBounds, toISODate } from "@/lib/utils";
 import { convert, type Rates } from "@/lib/currency";
+import { fetchAll } from "@/lib/fetch-all";
 
 import { getCurrentUserId } from "@/lib/server/session";
 import { samePeriodPrevMonth } from "@/lib/periods";
@@ -54,27 +55,37 @@ export async function getNetWorthSeries(userId: string, base: string) {
     .eq("user_id", userId)
     .eq("converted", true)
     .eq("currency", base)
-    .order("snapshot_date", { ascending: true })
+    // Останні 180 днів: беремо найновіші й розвертаємо в хронологічний порядок
+    // (з ascending+limit графік після пів року «застигав» на найстаріших знімках).
+    .order("snapshot_date", { ascending: false })
     .limit(180);
   if (error) return [];
-  return (data ?? []).map((s) => ({
-    date: s.snapshot_date as string,
-    value: Number(s.total_value),
-  }));
+  return (data ?? [])
+    .map((s) => ({
+      date: s.snapshot_date as string,
+      value: Number(s.total_value),
+    }))
+    .reverse();
 }
 
 /** Витрати за період [start, end] з категоріями. */
 export async function getExpenses(userId: string, start: string, end: string) {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("expenses")
-    .select("*, category:expense_categories!expenses_category_id_fkey(*), asset:assets(name, currency)")
-    .eq("user_id", userId)
-    .gte("spent_at", start)
-    .lte("spent_at", end)
-    .order("spent_at", { ascending: false })
-    .order("created_at", { ascending: false });
-  return (data as unknown as ExpenseWithCategory[]) ?? [];
+  const rows = await fetchAll((from, to) =>
+    supabase
+      .from("expenses")
+      .select("*, category:expense_categories!expenses_category_id_fkey(*), asset:assets(name, currency)", {
+        count: "exact",
+      })
+      .eq("user_id", userId)
+      .gte("spent_at", start)
+      .lte("spent_at", end)
+      .order("spent_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to),
+  );
+  return rows as unknown as ExpenseWithCategory[];
 }
 
 /** Останні N витрат. */
@@ -147,13 +158,17 @@ async function compareMonths(
   const same = samePeriodPrevMonth(ref);
 
   const rowsBetween = async (start: string, end: string) => {
-    const { data } = await supabase
-      .from(table)
-      .select(`amount, currency, ${dateCol}`)
-      .eq("user_id", userId)
-      .gte(dateCol, start)
-      .lte(dateCol, end);
-    return (data ?? []) as unknown as Record<string, string | number>[];
+    const rows = await fetchAll((from, to) =>
+      supabase
+        .from(table)
+        .select(`amount, currency, ${dateCol}`, { count: "exact" })
+        .eq("user_id", userId)
+        .gte(dateCol, start)
+        .lte(dateCol, end)
+        .order("id")
+        .range(from, to),
+    );
+    return rows as unknown as Record<string, string | number>[];
   };
   const sum = (rows: Record<string, string | number>[]) =>
     rows.reduce((s, r) => s + convert(Number(r.amount), String(r.currency), base, rates), 0);
@@ -194,15 +209,19 @@ export async function getMonthBudgetItems(userId: string, ref: Date, base: strin
 /** Доходи за період [start, end] з підтягнутим активом. */
 export async function getIncomes(userId: string, start: string, end: string) {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("incomes")
-    .select("*, asset:assets(name, currency)")
-    .eq("user_id", userId)
-    .gte("received_at", start)
-    .lte("received_at", end)
-    .order("received_at", { ascending: false })
-    .order("created_at", { ascending: false });
-  return (data as unknown as import("@/lib/types").IncomeWithAsset[]) ?? [];
+  const rows = await fetchAll((from, to) =>
+    supabase
+      .from("incomes")
+      .select("*, asset:assets(name, currency)", { count: "exact" })
+      .eq("user_id", userId)
+      .gte("received_at", start)
+      .lte("received_at", end)
+      .order("received_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to),
+  );
+  return rows as unknown as import("@/lib/types").IncomeWithAsset[];
 }
 
 /** Сума доходів за поточний та попередній місяць (у базовій валюті). */

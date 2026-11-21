@@ -10,6 +10,7 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { InstallButton } from "@/components/pwa/install-button";
 import { CategoryManager } from "@/components/settings/category-manager";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAll } from "@/lib/fetch-all";
 import { updateProfile } from "@/lib/actions/profile";
 import { CURRENCIES } from "@/lib/constants";
 import { formatDateUk, cn } from "@/lib/utils";
@@ -40,13 +41,21 @@ export function SettingsView({ profile }: { profile: Profile | null }) {
     setExporting(true);
     try {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("expenses")
-        .select("spent_at, amount, currency, comment, category:expense_categories!expenses_category_id_fkey(name)")
-        .order("spent_at", { ascending: false });
+      // Уся історія — частинами, інакше CSV обрізався б на 1000 рядках.
+      const data = await fetchAll((from, to) =>
+        supabase
+          .from("expenses")
+          .select("spent_at, amount, currency, comment, category:expense_categories!expenses_category_id_fkey(name)", {
+            count: "exact",
+          })
+          .order("spent_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      );
 
       const rows = [["Дата", "Категорія", "Сума", "Валюта", "Коментар"]];
-      for (const e of (data ?? []) as unknown as {
+      for (const e of data as unknown as {
         spent_at: string;
         amount: number;
         currency: string;
