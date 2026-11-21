@@ -94,7 +94,8 @@ export function BudgetView() {
       {/* Навігація місяцями + підсумок */}
       <Card>
         <CardContent>
-          <div className="flex items-center justify-between">
+          {/* На вузьких екранах кнопка копіювання переноситься на окремий рядок */}
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="flex items-center gap-1">
               <button onClick={() => shiftMonth(-1)} className="rounded-lg p-2 text-fg-muted hover:bg-surface-2" aria-label="Попередній місяць">
                 <ChevronLeft className="h-5 w-5" />
@@ -106,7 +107,7 @@ export function BudgetView() {
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
-            <Button variant="outline" size="sm" onClick={copyPrev} loading={copying}>
+            <Button variant="outline" size="sm" onClick={copyPrev} loading={copying} className="ml-auto whitespace-nowrap">
               <Copy className="h-4 w-4" /> Копіювати з минулого
             </Button>
           </div>
