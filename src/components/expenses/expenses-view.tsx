@@ -10,7 +10,8 @@ import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { FILTER_ALL, FILTER_NONE, matchesCategoryFilter, subcategoriesOf } from "@/lib/category-filter";
 import { formatCurrency, formatDateUk, monthBounds, toISODate, cn, pluralUk } from "@/lib/utils";
-import type { ExpenseCategory, ExpenseWithCategory } from "@/lib/types";
+import { withRefs } from "@/lib/expense-refs";
+import type { ExpenseItem, ExpenseItemWithRefs } from "@/lib/types";
 
 type Period = "month" | "prev" | "year" | "all";
 
@@ -21,14 +22,10 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: "all", label: "Увесь час" },
 ];
 
-export function ExpensesView({
-  expenses,
-  categories,
-}: {
-  expenses: ExpenseWithCategory[];
-  categories: ExpenseCategory[];
-}) {
-  const { openExpense, currency: base, rates } = useApp();
+export function ExpensesView({ expenses: rows }: { expenses: ExpenseItem[] }) {
+  const { openExpense, currency: base, rates, categories, assets } = useApp();
+  // Сервер шле лише поля витрат — категорію й актив підставляємо з контексту за id.
+  const expenses = useMemo(() => withRefs(rows, categories, assets), [rows, categories, assets]);
   const [period, setPeriod] = useState<Period>("month");
   const [categoryId, setCategoryId] = useState<string>(FILTER_ALL);
   const [subcategoryId, setSubcategoryId] = useState<string>(FILTER_ALL);
@@ -76,7 +73,7 @@ export function ExpensesView({
 
   // Групування за датою
   const groups = useMemo(() => {
-    const map = new Map<string, ExpenseWithCategory[]>();
+    const map = new Map<string, ExpenseItemWithRefs[]>();
     for (const e of filtered) {
       const arr = map.get(e.spent_at) ?? [];
       arr.push(e);

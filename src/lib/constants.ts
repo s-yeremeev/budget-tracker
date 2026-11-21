@@ -24,8 +24,14 @@ export const CATEGORY_COLORS = [
 // Набір іконок lucide для вибору в категоріях
 export const CATEGORY_ICONS = [
   "ShoppingCart", "Coffee", "Bus", "Car", "Shirt", "GraduationCap",
-  "HeartPulse", "Gamepad2", "Home", "Utensils", "Plane", "Gift",
+  "HeartPulse", "Gamepad2", "House", "Utensils", "Plane", "Gift",
   "Smartphone", "Dumbbell", "Baby", "PawPrint", "Fuel", "Pizza",
   "Wallet", "TrendingUp", "ShieldCheck", "Landmark", "PiggyBank",
   "CreditCard", "Bitcoin", "Tag",
+] as const;
+
+// Набір іконок для цілей
+export const GOAL_ICONS = [
+  "Target", "PiggyBank", "Plane", "Car", "House", "GraduationCap",
+  "Smartphone", "Gift", "Heart", "Briefcase", "Wallet", "TrendingUp",
 ] as const;

@@ -7,13 +7,13 @@ import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/components/app/app-shell";
 import { deleteExpense } from "@/lib/actions/expenses";
 import { formatCurrency, formatDateUk, cn } from "@/lib/utils";
-import type { ExpenseWithCategory } from "@/lib/types";
+import type { ExpenseItemWithRefs } from "@/lib/types";
 
 export function ExpenseList({
   expenses,
   compact = false,
 }: {
-  expenses: ExpenseWithCategory[];
+  expenses: ExpenseItemWithRefs[];
   compact?: boolean;
 }) {
   return (
@@ -25,7 +25,7 @@ export function ExpenseList({
   );
 }
 
-function ExpenseRow({ expense, compact }: { expense: ExpenseWithCategory; compact: boolean }) {
+function ExpenseRow({ expense, compact }: { expense: ExpenseItemWithRefs; compact: boolean }) {
   const { openExpense, categories } = useApp();
   const router = useRouter();
   const [pending, startTransition] = useTransition();

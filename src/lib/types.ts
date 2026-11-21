@@ -162,6 +162,21 @@ export type ExpenseWithCategory = Expense & {
   asset?: { name: string; currency: string } | null;
 };
 
+/** Поля витрати для списку й форми редагування (без службових user_id/created_at/asset_amount). */
+export type ExpenseItem = Pick<
+  Expense,
+  "id" | "category_id" | "subcategory_id" | "asset_id" | "amount" | "currency" | "spent_at" | "comment" | "tags"
+>;
+
+/** ExpenseItem з категорією й активом для показу (підставляються на клієнті з useApp()). */
+export type ExpenseItemWithRefs = ExpenseItem & {
+  category: ExpenseCategory | null;
+  asset?: { name: string; currency: string } | null;
+};
+
+/** Мінімум полів витрати для аналітики. */
+export type AnalyticsExpense = Pick<Expense, "category_id" | "subcategory_id" | "amount" | "currency" | "spent_at">;
+
 export type AssetWithCategory = Asset & {
   category: AssetCategory | null;
 };

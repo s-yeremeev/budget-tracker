@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
-import { NetWorthChart } from "@/components/charts/charts";
+import { NetWorthChart } from "@/components/charts/lazy-charts";
 import { AssetForm } from "@/components/assets/asset-form";
 import { TransferForm } from "@/components/assets/transfer-form";
 import { deleteAsset, adjustAsset } from "@/lib/actions/assets";

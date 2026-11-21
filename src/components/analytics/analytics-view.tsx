@@ -6,14 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
-import { DailyBarChart, CategoryDonut, MultiLineChart } from "@/components/charts/charts";
+import { DailyBarChart, CategoryDonut, MultiLineChart } from "@/components/charts/lazy-charts";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { MONTHS_SHORT, buildComparison, monthsBack } from "@/lib/analytics";
 import { FILTER_ALL, FILTER_NONE, subcategoriesOf } from "@/lib/category-filter";
 import { formatCurrency, formatDayRange, percentChange, toISODate, cn } from "@/lib/utils";
 import { samePeriodPrevMonth, samePeriodPrevYear } from "@/lib/periods";
-import type { ExpenseWithCategory } from "@/lib/types";
+import { withRefs } from "@/lib/expense-refs";
+import type { AnalyticsExpense, ExpenseCategory } from "@/lib/types";
+
+/** Витрата аналітики: сума вже в базовій валюті + підставлена категорія. */
+type Row = AnalyticsExpense & { category: ExpenseCategory | null };
 
 type Period = "week" | "month" | "year";
 
@@ -25,12 +29,17 @@ const PERIODS: { key: Period; label: string }[] = [
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
 
-export function AnalyticsView({ expenses: rawExpenses }: { expenses: ExpenseWithCategory[] }) {
+export function AnalyticsView({ expenses: rawExpenses }: { expenses: AnalyticsExpense[] }) {
   const { currency: base, rates, categories } = useApp();
-  // Конвертуємо суми у базову валюту один раз — далі всі підрахунки в базовій.
-  const expenses = useMemo(
-    () => rawExpenses.map((e) => ({ ...e, amount: convert(Number(e.amount), e.currency, base, rates) })),
-    [rawExpenses, base, rates],
+  // Категорію підставляємо з контексту (сервер шле лише id), суми конвертуємо у базову
+  // валюту один раз — далі всі підрахунки в базовій.
+  const expenses = useMemo<Row[]>(
+    () =>
+      withRefs(rawExpenses, categories).map((e) => ({
+        ...e,
+        amount: convert(Number(e.amount), e.currency, base, rates),
+      })),
+    [rawExpenses, categories, base, rates],
   );
   const [period, setPeriod] = useState<Period>("month");
   const [monthOffset, setMonthOffset] = useState(0); // 0 = поточний місяць
@@ -348,7 +357,7 @@ function MiniStat({ label, value, sub, tone }: { label: string; value: string; s
 }
 
 /** Готує дані для періоду: фільтрує витрати та будує бари. */
-function computePeriod(expenses: ExpenseWithCategory[], period: Period, monthOffset = 0) {
+function computePeriod(expenses: Row[], period: Period, monthOffset = 0) {
   const now = new Date();
   const parse = (s: string) => new Date(s + "T00:00:00");
 

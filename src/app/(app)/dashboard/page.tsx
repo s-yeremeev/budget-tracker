@@ -6,7 +6,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { ExpenseList } from "@/components/expenses/expense-list";
-import { NetWorthChart, CategoryDonut } from "@/components/charts/charts";
+import { NetWorthChart, CategoryDonut } from "@/components/charts/lazy-charts";
 import { AddExpenseButton } from "@/components/expenses/add-expense-button";
 import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer";
 import { getProfile } from "@/lib/server/session";

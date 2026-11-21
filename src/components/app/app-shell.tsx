@@ -6,11 +6,11 @@ import { Topbar } from "@/components/layout/topbar";
 import { Modal } from "@/components/ui/modal";
 import { ExpenseForm } from "@/components/expenses/expense-form";
 import { CommandPalette } from "@/components/app/command-palette";
-import type { ExpenseCategory, Expense, Profile, Asset } from "@/lib/types";
+import type { ExpenseCategory, ExpenseItem, Profile, Asset } from "@/lib/types";
 import type { Rates } from "@/lib/currency";
 
 interface AppContextValue {
-  openExpense: (expense?: Expense | null) => void;
+  openExpense: (expense?: ExpenseItem | null) => void;
   openPalette: () => void;
   categories: ExpenseCategory[];
   assets: Asset[];
@@ -36,11 +36,11 @@ interface Props {
 
 export function AppShell({ children, profile, categories, assets, rates }: Props) {
   const [expenseOpen, setExpenseOpen] = useState(false);
-  const [editing, setEditing] = useState<Expense | null>(null);
+  const [editing, setEditing] = useState<ExpenseItem | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const currency = profile?.base_currency ?? "UAH";
 
-  const openExpense = useCallback((expense?: Expense | null) => {
+  const openExpense = useCallback((expense?: ExpenseItem | null) => {
     setEditing(expense ?? null);
     setExpenseOpen(true);
   }, []);

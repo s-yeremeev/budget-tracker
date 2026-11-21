@@ -12,12 +12,12 @@ import { CategoryCreateInline } from "./category-create-inline";
 import { createExpense, updateExpense, type ExpenseInput } from "@/lib/actions/expenses";
 import { CURRENCIES } from "@/lib/constants";
 import { toISODate, formatCurrency, cn } from "@/lib/utils";
-import type { ExpenseCategory, Expense, Asset } from "@/lib/types";
+import type { ExpenseCategory, ExpenseItem, Asset } from "@/lib/types";
 
 interface Props {
   categories: ExpenseCategory[];
   assets?: Asset[];
-  expense?: Expense | null;
+  expense?: ExpenseItem | null;
   defaultCurrency?: string;
   onDone: () => void;
 }

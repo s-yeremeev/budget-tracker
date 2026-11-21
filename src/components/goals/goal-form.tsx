@@ -8,14 +8,10 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/components/app/app-shell";
 import { createGoal, updateGoal, type GoalInput } from "@/lib/actions/goals";
-import { CURRENCIES, CATEGORY_COLORS } from "@/lib/constants";
+import { CURRENCIES, CATEGORY_COLORS, GOAL_ICONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Goal } from "@/lib/types";
 
-const GOAL_ICONS = [
-  "Target", "PiggyBank", "Plane", "Car", "House", "GraduationCap",
-  "Smartphone", "Gift", "Heart", "Briefcase", "Wallet", "TrendingUp",
-];
 
 interface Props {
   goal?: Goal | null;
@@ -34,7 +30,7 @@ export function GoalForm({ goal, defaultCurrency, onDone }: Props) {
   const [currency, setCurrency] = useState(goal?.currency ?? defaultCurrency ?? base); // за замовчуванням — базова валюта
   const [date, setDate] = useState(goal?.target_date ?? "");
   const [assetId, setAssetId] = useState<string | null>(goal?.asset_id ?? null);
-  const [icon, setIcon] = useState(goal?.icon ?? GOAL_ICONS[0]);
+  const [icon, setIcon] = useState<string>(goal?.icon ?? GOAL_ICONS[0]);
   const [color, setColor] = useState(goal?.color ?? CATEGORY_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
 
