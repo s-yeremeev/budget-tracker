@@ -60,7 +60,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon|publishable key>
 NEXT_PUBLIC_SITE_URL=http://localhost:3000   # на проді — домен Vercel
 ```
 - Підтримується як класичний **anon**, так і новий **publishable** (`sb_publishable_…`) ключ.
-- Якщо змінні не задані, `src/lib/supabase/config.ts` підставляє валідні плейсхолдери — застосунок збереться й запуститься, але запити не працюватимуть. `proxy.ts` обгортає `getUser()` у try/catch, тож відсутність конфігу не валить сервер.
+- Якщо змінні не задані, `src/lib/supabase/config.ts` підставляє валідні плейсхолдери — застосунок збереться й запуститься, але запити не працюватимуть. Перевірка сесії (`verifiedUserId`) ловить помилки й повертає «нікого», тож відсутність конфігу не валить сервер.
 
 ### База даних
 Уся схема — в одному файлі **`supabase/schema.sql`** (idempotent). Виконати в
@@ -109,9 +109,9 @@ src/
 │  ├─ charts/lazy-charts.tsx     # ті самі графіки через next/dynamic (ssr:false) — імпортуй ЗВІДСИ
 │  └─ ui/                        # Button, Card, Input/Select/Textarea/Label, Modal, StatCard, EmptyState, Icon, TagInput
 └─ lib/
-   ├─ supabase/                  # client (browser), server (RSC/actions), middleware (proxy-сесія), config
+   ├─ supabase/                  # client (browser), server (RSC/actions), middleware (proxy-сесія), claims (verifiedUserId — перевірка сесії), config
    ├─ actions/                   # СЕРВЕРНІ ЕКШЕНИ ("use server"): expenses, incomes, recurring, budgets, goals, assets, credits, profile
-   ├─ server/                    # НЕ-"use server" серверні модулі: session (кешовані user/profile), daily-processing, recurring, credit-payments, net-worth, rates (можуть приймати несеріалізовані аргументи)
+   ├─ server/                    # НЕ-"use server" серверні модулі: session (кешовані user/profile), require-user (для actions), daily-processing, recurring, credit-payments, net-worth, rates (можуть приймати несеріалізовані аргументи)
    ├─ queries.ts                 # серверні читання/агрегації (приймають base+rates для конвертації)
    ├─ fetch-all.ts               # fetchAll: усі рядки частинами (обхід ліміту 1000 рядків на запит)
    ├─ expense-refs.ts            # тонкі витрати: колонки для списку/аналітики + withRefs (категорія/актив за id)
@@ -173,6 +173,18 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - **`src/proxy.ts`** на кожному запиті оновлює сесію (`updateSession` у
   `lib/supabase/middleware.ts`), редіректить неавторизованих на `/login`, а
   авторизованих зі сторінок входу — на `/dashboard`.
+- **Перевірка сесії — лише `verifiedUserId()`** (`lib/supabase/claims.ts`): proxy, layout/
+  сторінки (`getCurrentUserId`) і server actions (`requireUser` у `lib/server/require-user.ts`).
+  - `auth.getClaims()` перевіряє підпис JWT **локально** за JWKS проєкту (на проді ключ
+    **ES256**; JWKS кешується на 10 хв на процес) і за потреби оновлює прострочений токен.
+    Без запиту до Supabase Auth — раніше `getUser()` у proxy коштував ~95 мс на кожен перехід,
+    prefetch і збереження.
+  - Не вдалося перевірити локально (JWKS недоступний, чужий підпис, HS256) → фолбек на
+    `getUser()` (запит до Auth). Підробки (чужий ключ, `alg: none`, підміна на HS256)
+    відхиляються — перевірено на стенді.
+  - Компроміс: сесію, завершену на іншому пристрої, приймаємо до кінця життя токена
+    (≤ 1 год) — так само, як її приймає сама база (PostgREST перевіряє лише підпис).
+  - **Не викликай `auth.getUser()` напряму** — тест `claims.test.ts` це ловить.
 - **`matcher` у proxy виключає** статику, зображення, **`manifest.webmanifest` і `sw.js`** —
   інакше PWA-файли редіректились би на /login (це вже фіксилось).
 - OAuth-флоу: кнопка → `signInWithOAuth` → Supabase → `/auth/callback` (route handler:
@@ -193,9 +205,8 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 **Дані запиту — один раз на рендер** (`lib/server/session.ts`, React `cache`). Layout і
 сторінка рендеряться **паралельно**, тож спільні дані беруться через кешовані функції:
-- `getCurrentUserId()` — `auth.getClaims()`: з асиметричним JWT-ключем перевіряє токен
-  локально (JWKS кешується на 10 хв), з симетричним — сам звертається до Auth; фолбек на
-  `getUser()`. Повну перевірку сесії й оновлення токена робить **proxy** на кожному запиті.
+- `getCurrentUserId()` — `verifiedUserId()` (див. §5): локальна перевірка JWT без запиту до
+  Auth. Оновлення токена в cookies робить **proxy** перед рендером.
 - `getProfile(userId)` — профіль (layout, дашборд, активи, налаштування — один запит).
 - `getRates(base)` — курси (ще й Next fetch-кеш на 6 год).
 У сторінках бери id через `getUserId()` (`queries.ts`) або `getCurrentUserId()`, профіль —
@@ -473,6 +484,9 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - **RLS** — головний захист: навіть із публічним anon/publishable ключем чужі дані
   недоступні (фільтрує Postgres).
 - Anon/publishable ключ публічний за дизайном (кладеться у `NEXT_PUBLIC_*`).
+- **Сесія** перевіряється локально за підписом JWT (`verifiedUserId`, ES256/JWKS); підроблені
+  токени (чужий ключ, `alg: none`, підміна на HS256) відхиляються. Відкликана на іншому
+  пристрої сесія діє до кінця життя токена (≤ 1 год), як і для самої бази.
 - `.env.local` у `.gitignore`; у репо лише `.env.example`.
 
 ---
