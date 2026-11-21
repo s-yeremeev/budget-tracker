@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { monthBounds, toISODate } from "@/lib/utils";
 import { convert, type Rates } from "@/lib/currency";
+import { plannedTotal } from "@/lib/budget";
 import type {
   Asset,
   AssetCategory,
@@ -140,16 +141,31 @@ export async function getMonthComparison(userId: string, ref: Date, base: string
   return { current, previous };
 }
 
-/** Сума запланованого бюджету на місяць (у базовій валюті). */
+/**
+ * Сума запланованого бюджету на місяць (у базовій валюті).
+ * Ліміти підкатегорій не додаються, якщо в батьківської категорії є власний ліміт.
+ */
 export async function getMonthBudgetTotal(userId: string, ref: Date, base: string, rates: Rates) {
   const supabase = await createClient();
   const period = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}-01`;
   const { data } = await supabase
     .from("budgets")
-    .select("amount, currency")
+    .select("category_id, amount, currency, category:expense_categories(parent_id)")
     .eq("user_id", userId)
     .eq("period", period);
-  return (data ?? []).reduce((s, b) => s + convert(Number(b.amount), b.currency, base, rates), 0);
+  const rows = (data ?? []) as unknown as {
+    category_id: string;
+    amount: number;
+    currency: string;
+    category: { parent_id: string | null } | null;
+  }[];
+  return plannedTotal(
+    rows.map((b) => ({
+      categoryId: b.category_id,
+      parentId: b.category?.parent_id ?? null,
+      amount: convert(Number(b.amount), b.currency, base, rates),
+    })),
+  );
 }
 
 /** Доходи за період [start, end] з підтягнутим активом. */

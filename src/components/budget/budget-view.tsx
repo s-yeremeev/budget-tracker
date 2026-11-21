@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Copy, Loader2, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,14 @@ import { useApp } from "@/components/app/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { setBudget, copyBudgetFromPrevMonth } from "@/lib/actions/budgets";
 import { convert } from "@/lib/currency";
+import { computeBudget, type BudgetRow as Row } from "@/lib/budget";
 import { formatCurrency, formatMonthUk, monthBounds, cn } from "@/lib/utils";
+import type { ExpenseCategory } from "@/lib/types";
+
+const EMPTY_ROW: Row = { spent: 0, planned: 0 };
 
 function periodISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-interface Row {
-  spent: number;
-  planned: number;
 }
 
 export function BudgetView() {
@@ -29,6 +28,7 @@ export function BudgetView() {
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
   const [data, setData] = useState<Record<string, Row>>({});
+  const [totals, setTotals] = useState({ planned: 0, spent: 0 });
   const [loading, setLoading] = useState(true);
   const [copying, startCopy] = useTransition();
 
@@ -41,20 +41,19 @@ export function BudgetView() {
       supabase.from("budgets").select("category_id, amount, currency").eq("period", period),
       supabase
         .from("expenses")
-        .select("category_id, amount, currency")
+        .select("category_id, subcategory_id, amount, currency")
         .gte("spent_at", start)
         .lte("spent_at", end),
     ]);
 
-    const map: Record<string, Row> = {};
-    for (const c of categories) map[c.id] = { spent: 0, planned: 0 };
-    for (const b of (budgets ?? []) as { category_id: string; amount: number; currency: string }[]) {
-      if (map[b.category_id]) map[b.category_id].planned = convert(Number(b.amount), b.currency, currency, rates);
-    }
-    for (const e of (expenses ?? []) as { category_id: string | null; amount: number; currency: string }[]) {
-      if (e.category_id && map[e.category_id]) map[e.category_id].spent += convert(Number(e.amount), e.currency, currency, rates);
-    }
-    setData(map);
+    const summary = computeBudget(
+      categories,
+      (budgets ?? []) as { category_id: string; amount: number; currency: string }[],
+      (expenses ?? []) as { category_id: string | null; subcategory_id: string | null; amount: number; currency: string }[],
+      (amount, cur) => convert(amount, cur, currency, rates),
+    );
+    setData(summary.rows);
+    setTotals({ planned: summary.totalPlanned, spent: summary.totalSpent });
     setLoading(false);
   }, [supabase, period, ref, categories, currency, rates]);
 
@@ -62,9 +61,19 @@ export function BudgetView() {
     load();
   }, [load]);
 
-  const totalPlanned = Object.values(data).reduce((s, r) => s + r.planned, 0);
-  const totalSpent = Object.values(data).reduce((s, r) => s + r.spent, 0);
+  const totalPlanned = totals.planned;
+  const totalSpent = totals.spent;
   const remaining = totalPlanned - totalSpent;
+
+  // Порядок: категорія, одразу за нею — її підкатегорії.
+  const ordered = useMemo(() => {
+    const out: { cat: ExpenseCategory; parent: ExpenseCategory | null }[] = [];
+    for (const top of categories.filter((c) => !c.parent_id)) {
+      out.push({ cat: top, parent: null });
+      for (const sub of categories.filter((c) => c.parent_id === top.id)) out.push({ cat: sub, parent: top });
+    }
+    return out;
+  }, [categories]);
 
   function shiftMonth(delta: number) {
     setRef((r) => new Date(r.getFullYear(), r.getMonth() + delta, 1));
@@ -77,8 +86,8 @@ export function BudgetView() {
     });
   }
 
-  const planned = categories.filter((c) => (data[c.id]?.planned ?? 0) > 0);
-  const unplanned = categories.filter((c) => (data[c.id]?.planned ?? 0) === 0);
+  const planned = ordered.filter(({ cat }) => (data[cat.id]?.planned ?? 0) > 0);
+  const unplanned = ordered.filter(({ cat }) => (data[cat.id]?.planned ?? 0) === 0);
 
   return (
     <div className="space-y-6">
@@ -140,11 +149,12 @@ export function BudgetView() {
         <>
           {planned.length > 0 && (
             <div className="space-y-3">
-              {planned.map((c) => (
+              {planned.map(({ cat, parent }) => (
                 <BudgetRow
-                  key={c.id}
-                  category={c}
-                  row={data[c.id]}
+                  key={cat.id}
+                  category={cat}
+                  parentName={parent?.name}
+                  row={data[cat.id] ?? EMPTY_ROW}
                   period={period}
                   currency={currency}
                   onSaved={load}
@@ -159,11 +169,12 @@ export function BudgetView() {
                 Без ліміту
               </p>
               <div className="space-y-3">
-                {unplanned.map((c) => (
+                {unplanned.map(({ cat, parent }) => (
                   <BudgetRow
-                    key={c.id}
-                    category={c}
-                    row={data[c.id]}
+                    key={cat.id}
+                    category={cat}
+                    parentName={parent?.name}
+                    row={data[cat.id] ?? EMPTY_ROW}
                     period={period}
                     currency={currency}
                     onSaved={load}
@@ -196,12 +207,15 @@ function Summary({ label, value, tone }: { label: string; value: string; tone?: 
 
 function BudgetRow({
   category,
+  parentName,
   row,
   period,
   currency,
   onSaved,
 }: {
   category: { id: string; name: string; icon: string; color: string };
+  /** Назва батьківської категорії — задана лише для підкатегорій. */
+  parentName?: string;
   row: Row;
   period: string;
   currency: string;
@@ -235,7 +249,7 @@ function BudgetRow({
   }
 
   return (
-    <Card>
+    <Card className={cn(parentName && "ml-4 sm:ml-10")}>
       <CardContent className="py-4">
         <div className="flex items-center gap-3">
           <span
@@ -246,11 +260,17 @@ function BudgetRow({
           </span>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-sm font-medium text-fg">{category.name}</p>
+            {/* На телефоні назва й суми — окремими рядками, щоб назва не обрізалась */}
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+              <div className="min-w-0">
+                {parentName && (
+                  <p className="truncate text-[11px] leading-tight text-fg-subtle">{parentName} ›</p>
+                )}
+                <p className="truncate text-sm font-medium text-fg">{category.name}</p>
+              </div>
               <span
                 className={cn(
-                  "text-sm font-semibold",
+                  "text-xs font-semibold sm:shrink-0 sm:text-sm",
                   over ? "text-danger" : near ? "text-warning" : "text-fg-muted",
                 )}
               >
@@ -279,7 +299,7 @@ function BudgetRow({
             )}
           </div>
 
-          <div className="relative w-28 shrink-0">
+          <div className="relative w-24 shrink-0 sm:w-28">
             <input
               inputMode="decimal"
               value={value}
