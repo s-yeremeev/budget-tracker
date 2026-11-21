@@ -11,7 +11,8 @@ import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
 import { MONTHS_SHORT, buildComparison, monthsBack } from "@/lib/analytics";
 import { FILTER_ALL, FILTER_NONE, subcategoriesOf } from "@/lib/category-filter";
-import { formatCurrency, percentChange, cn } from "@/lib/utils";
+import { formatCurrency, formatDayRange, percentChange, toISODate, cn } from "@/lib/utils";
+import { samePeriodPrevMonth, samePeriodPrevYear } from "@/lib/periods";
 import type { ExpenseWithCategory } from "@/lib/types";
 
 type Period = "week" | "month" | "year";
@@ -34,7 +35,7 @@ export function AnalyticsView({ expenses: rawExpenses }: { expenses: ExpenseWith
   const [period, setPeriod] = useState<Period>("month");
   const [monthOffset, setMonthOffset] = useState(0); // 0 = поточний місяць
 
-  const { inRange, prevRange, bars, label } = useMemo(
+  const { inRange, prevRange, bars, label, prevLabel } = useMemo(
     () => computePeriod(expenses, period, monthOffset),
     [expenses, period, monthOffset],
   );
@@ -142,7 +143,7 @@ export function AnalyticsView({ expenses: rawExpenses }: { expenses: ExpenseWith
         </Card>
         <Card>
           <CardContent>
-            <p className="text-sm text-fg-muted">Попередній період</p>
+            <p className="text-sm text-fg-muted">Порівняння: {prevLabel}</p>
             <p className="mt-1 text-2xl font-bold text-fg">{formatCurrency(prevTotal, base)}</p>
           </CardContent>
         </Card>
@@ -366,26 +367,28 @@ function computePeriod(expenses: ExpenseWithCategory[], period: Period, monthOff
     const bars = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      const key = d.toISOString().slice(0, 10);
+      const key = toISODate(d); // локальна дата (toISOString давав UTC → зсув на день у UTC+)
       const amount = inRange
         .filter((e) => e.spent_at === key)
         .reduce((s, e) => s + Number(e.amount), 0);
       return { label: WEEKDAYS[(d.getDay() + 6) % 7], amount };
     });
-    return { inRange, prevRange, bars, label: "тиждень" };
+    return { inRange, prevRange, bars, label: "тиждень", prevLabel: "Попередні 7 днів" };
   }
 
   if (period === "year") {
     const year = now.getFullYear();
     const inRange = expenses.filter((e) => parse(e.spent_at).getFullYear() === year);
-    const prevRange = expenses.filter((e) => parse(e.spent_at).getFullYear() === year - 1);
+    // Поточний рік неповний — порівнюємо з тим самим відрізком минулого року.
+    const same = samePeriodPrevYear(now);
+    const prevRange = expenses.filter((e) => e.spent_at >= same.start && e.spent_at <= same.end);
     const bars = MONTHS_SHORT.map((m, i) => ({
       label: m,
       amount: inRange
         .filter((e) => parse(e.spent_at).getMonth() === i)
         .reduce((s, e) => s + Number(e.amount), 0),
     }));
-    return { inRange, prevRange, bars, label: String(year) };
+    return { inRange, prevRange, bars, label: String(year), prevLabel: `${formatDayRange(same.start, same.end)} ${year - 1}` };
   }
 
   // month (з урахуванням зсуву)
@@ -398,10 +401,15 @@ function computePeriod(expenses: ExpenseWithCategory[], period: Period, monthOff
     return d.getFullYear() === y && d.getMonth() === m;
   });
   const prevMonthRef = new Date(y, m - 1, 1);
-  const prevRange = expenses.filter((e) => {
-    const d = parse(e.spent_at);
-    return d.getFullYear() === prevMonthRef.getFullYear() && d.getMonth() === prevMonthRef.getMonth();
-  });
+  // Поточний місяць неповний — порівнюємо з тими самими днями попереднього.
+  const isCurrent = monthOffset === 0;
+  const same = samePeriodPrevMonth(now);
+  const prevRange = isCurrent
+    ? expenses.filter((e) => e.spent_at >= same.start && e.spent_at <= same.end)
+    : expenses.filter((e) => {
+        const d = parse(e.spent_at);
+        return d.getFullYear() === prevMonthRef.getFullYear() && d.getMonth() === prevMonthRef.getMonth();
+      });
   const bars = Array.from({ length: days }, (_, i) => {
     const day = i + 1;
     const amount = inRange
@@ -409,5 +417,11 @@ function computePeriod(expenses: ExpenseWithCategory[], period: Period, monthOff
       .reduce((s, e) => s + Number(e.amount), 0);
     return { label: String(day), amount };
   });
-  return { inRange, prevRange, bars, label: `${MONTHS_SHORT[m]} ${y}` };
+  return {
+    inRange,
+    prevRange,
+    bars,
+    label: `${MONTHS_SHORT[m]} ${y}`,
+    prevLabel: isCurrent ? formatDayRange(same.start, same.end) : `${MONTHS_SHORT[prevMonthRef.getMonth()]} ${prevMonthRef.getFullYear()}`,
+  };
 }

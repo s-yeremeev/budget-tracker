@@ -89,11 +89,14 @@ export async function processRecurring(userId: string): Promise<boolean> {
     if (a != null) deltas[row.asset_id as string] = (deltas[row.asset_id as string] ?? 0) - a;
   });
 
-  await withColumnFallback((withNew) =>
+  const { error: insertError } = await withColumnFallback((withNew) =>
     supabase
       .from("expenses")
       .insert(withNew ? expenseRows : omitKey(expenseRows, "asset_amount")),
   );
+  // Витрати не записались — НЕ просуваємо курсор і не списуємо з активу,
+  // інакше нарахування загубиться. Помилка → позначку дня знімуть, буде повтор.
+  if (insertError) throw new Error(`Авто-нарахування не записалось: ${insertError.message}`);
   await Promise.all(
     updates.map((u) =>
       supabase

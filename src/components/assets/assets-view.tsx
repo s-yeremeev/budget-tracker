@@ -209,6 +209,7 @@ function AssetRow({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
   const [confirming, setConfirming] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [amount, setAmount] = useState("");
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
   function remove() {
     startTransition(async () => {
@@ -220,8 +221,13 @@ function AssetRow({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
   function adjust(sign: 1 | -1) {
     const num = parseFloat(amount.replace(",", ".")) || 0;
     if (num <= 0) return;
+    setAdjustError(null);
     startTransition(async () => {
-      await adjustAsset(asset.id, sign * num);
+      const res = await adjustAsset(asset.id, sign * num);
+      if (res.error) {
+        setAdjustError(res.error); // напр. «Недостатньо коштів…» — баланс не змінено
+        return;
+      }
       setAmount("");
       setAdjusting(false);
       router.refresh();
@@ -306,6 +312,7 @@ function AssetRow({ asset, onEdit }: { asset: Asset; onEdit: () => void }) {
           </Button>
         </div>
       )}
+      {adjusting && !confirming && adjustError && <p className="mt-1.5 text-xs text-danger">{adjustError}</p>}
     </li>
   );
 }

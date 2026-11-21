@@ -12,6 +12,8 @@ import { GoalForm } from "@/components/goals/goal-form";
 import { deleteGoal, addGoalContribution } from "@/lib/actions/goals";
 import { formatCurrency, formatDateUk, cn, pluralUk } from "@/lib/utils";
 import type { Goal, GoalWithAsset } from "@/lib/types";
+import { useApp } from "@/components/app/app-shell";
+import { convertBetween } from "@/lib/currency";
 
 export function GoalsView({ goals }: { goals: GoalWithAsset[] }) {
   const [open, setOpen] = useState(false);
@@ -71,11 +73,15 @@ export function GoalsView({ goals }: { goals: GoalWithAsset[] }) {
 
 function GoalCard({ goal, onEdit }: { goal: GoalWithAsset; onEdit: () => void }) {
   const router = useRouter();
+  const { currency: base, rates } = useApp();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
 
   const linked = !!goal.asset_id;
-  const current = linked ? Number(goal.asset?.value ?? 0) : Number(goal.current_amount);
+  // Баланс привʼязаного активу — у валюті цілі (актив може бути в іншій валюті).
+  const current = linked
+    ? convertBetween(Number(goal.asset?.value ?? 0), goal.asset?.currency ?? goal.currency, goal.currency, base, rates)
+    : Number(goal.current_amount);
   const target = Number(goal.target_amount);
   const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   const remaining = Math.max(target - current, 0);

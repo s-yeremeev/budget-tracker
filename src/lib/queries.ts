@@ -3,6 +3,7 @@ import { monthBounds, toISODate } from "@/lib/utils";
 import { convert, type Rates } from "@/lib/currency";
 
 import { getCurrentUserId } from "@/lib/server/session";
+import { samePeriodPrevMonth } from "@/lib/periods";
 import type {
   Asset,
   AssetCategory,
@@ -123,28 +124,46 @@ export function aggregateByCategory(
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
-/** Сума витрат за поточний та попередній місяць (у базовій валюті). */
+/**
+ * Сума витрат за поточний місяць і попередній (у базовій валюті):
+ * `previous` — увесь попередній місяць, `previousSamePeriod` — ті самі дні (1…сьогодні),
+ * щоб порівнювати неповний поточний місяць чесно.
+ */
 export async function getMonthComparison(userId: string, ref: Date, base: string, rates: Rates) {
+  return compareMonths("expenses", "spent_at", userId, ref, base, rates);
+}
+
+async function compareMonths(
+  table: "expenses" | "incomes",
+  dateCol: "spent_at" | "received_at",
+  userId: string,
+  ref: Date,
+  base: string,
+  rates: Rates,
+) {
   const supabase = await createClient();
   const cur = monthBounds(ref);
-  const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
-  const prev = monthBounds(prevRef);
+  const prev = monthBounds(new Date(ref.getFullYear(), ref.getMonth() - 1, 1));
+  const same = samePeriodPrevMonth(ref);
 
-  const sumBetween = async (start: string, end: string) => {
+  const rowsBetween = async (start: string, end: string) => {
     const { data } = await supabase
-      .from("expenses")
-      .select("amount, currency")
+      .from(table)
+      .select(`amount, currency, ${dateCol}`)
       .eq("user_id", userId)
-      .gte("spent_at", start)
-      .lte("spent_at", end);
-    return (data ?? []).reduce((s, e) => s + convert(Number(e.amount), e.currency, base, rates), 0);
+      .gte(dateCol, start)
+      .lte(dateCol, end);
+    return (data ?? []) as unknown as Record<string, string | number>[];
   };
+  const sum = (rows: Record<string, string | number>[]) =>
+    rows.reduce((s, r) => s + convert(Number(r.amount), String(r.currency), base, rates), 0);
 
-  const [current, previous] = await Promise.all([
-    sumBetween(cur.start, cur.end),
-    sumBetween(prev.start, prev.end),
-  ]);
-  return { current, previous };
+  const [curRows, prevRows] = await Promise.all([rowsBetween(cur.start, cur.end), rowsBetween(prev.start, prev.end)]);
+  return {
+    current: sum(curRows),
+    previous: sum(prevRows),
+    previousSamePeriod: sum(prevRows.filter((r) => String(r[dateCol]) <= same.end)),
+  };
 }
 
 /**
@@ -188,24 +207,7 @@ export async function getIncomes(userId: string, start: string, end: string) {
 
 /** Сума доходів за поточний та попередній місяць (у базовій валюті). */
 export async function getMonthIncome(userId: string, ref: Date, base: string, rates: Rates) {
-  const supabase = await createClient();
-  const cur = monthBounds(ref);
-  const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
-  const prev = monthBounds(prevRef);
-  const sumBetween = async (start: string, end: string) => {
-    const { data } = await supabase
-      .from("incomes")
-      .select("amount, currency")
-      .eq("user_id", userId)
-      .gte("received_at", start)
-      .lte("received_at", end);
-    return (data ?? []).reduce((s, i) => s + convert(Number(i.amount), i.currency, base, rates), 0);
-  };
-  const [current, previous] = await Promise.all([
-    sumBetween(cur.start, cur.end),
-    sumBetween(prev.start, prev.end),
-  ]);
-  return { current, previous };
+  return compareMonths("incomes", "received_at", userId, ref, base, rates);
 }
 
 /** Цілі користувача (з підтягнутим активом). */

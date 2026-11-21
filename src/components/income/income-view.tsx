@@ -165,7 +165,7 @@ function IncomeRow({ income, onEdit }: { income: IncomeWithAsset; onEdit: () => 
       <span className="shrink-0 text-sm font-semibold text-success">
         +{formatCurrency(Number(income.amount), income.currency)}
       </span>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
         {confirming ? (
           <div className="flex items-center gap-1">
             <button onClick={remove} className="rounded-lg bg-danger px-2 py-1 text-xs font-medium text-white">Видалити</button>

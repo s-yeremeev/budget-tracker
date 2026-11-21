@@ -26,7 +26,9 @@ import {
 } from "@/lib/queries";
 import { isWidgetOn } from "@/lib/dashboard-widgets";
 import { summarizeMonthBudget } from "@/lib/budget";
-import { convert } from "@/lib/currency";
+import { monthEndForecast, samePeriodPrevMonth } from "@/lib/periods";
+import { cardDebtTotal } from "@/lib/money";
+import { convert, convertBetween } from "@/lib/currency";
 import { getRates } from "@/lib/server/rates";
 import {
   formatCurrency,
@@ -36,6 +38,8 @@ import {
   nextPaymentDate,
   daysUntil,
   formatDateUk,
+  formatDayRange,
+  daysInMonth,
   cn,
 } from "@/lib/utils";
 
@@ -52,7 +56,7 @@ export default async function DashboardPage() {
   const rates = await getRates(base);
 
   const [
-    { total: assetsTotal },
+    { total: assetsTotal, assets: assetList },
     series,
     monthCmp,
     recent,
@@ -78,15 +82,19 @@ export default async function DashboardPage() {
   const show = (k: string) => isWidgetOn(prefs, k);
 
   const netWorth = assetsTotal - debtTotal;
+  const cardDebt = cardDebtTotal(assetList, base, rates); // мінус на картках
   const monthIncome = incomeCmp.current;
   const balance = monthIncome - monthCmp.current;
-  const incomeChange = percentChange(incomeCmp.current, incomeCmp.previous);
+  // Неповний поточний місяць порівнюємо з тими самими днями попереднього.
+  const samePeriod = samePeriodPrevMonth(now);
+  const samePeriodHint = `Порівняно з ${formatDayRange(samePeriod.start, samePeriod.end)}`;
+  const incomeChange = percentChange(incomeCmp.current, incomeCmp.previousSamePeriod);
   const savingsRate = monthIncome > 0 ? (balance / monthIncome) * 100 : null;
 
   const byCategory = aggregateByCategory(monthExpenses, base, rates);
   const topCategory = byCategory[0] ?? null;
   const spentThisMonth = monthCmp.current;
-  const change = percentChange(monthCmp.current, monthCmp.previous);
+  const change = percentChange(monthCmp.current, monthCmp.previousSamePeriod);
 
   // Бюджет: залишок рахуємо лише по категоріях з лімітом, решта — «поза бюджетом».
   const budget = summarizeMonthBudget(
@@ -108,7 +116,15 @@ export default async function DashboardPage() {
   const nwChange =
     series.length >= 2 ? percentChange(series[series.length - 1].value, series[0].value) : null;
 
-  const insights = buildInsights({ spentThisMonth, prevMonth: monthCmp.previous, topCategory });
+  const insights = buildInsights({
+    spentThisMonth,
+    prevSamePeriod: monthCmp.previousSamePeriod,
+    prevMonthFull: monthCmp.previous,
+    forecast: monthEndForecast(spentThisMonth, now),
+    isLastDay: now.getDate() === daysInMonth(now),
+    base,
+    topCategory,
+  });
   const donutData = byCategory.slice(0, 8).map((c) => ({ name: c.name, value: c.total, color: c.color }));
 
   // Найближчі платежі по кредитах (з заданим днем платежу)
@@ -137,10 +153,10 @@ export default async function DashboardPage() {
       />
     ),
     show("m_income") && (
-      <StatCard key="inc" label={`Доходи · ${formatMonthUk(now)}`} value={formatCurrency(monthIncome, base)} icon="Banknote" iconColor="#10b981" change={incomeChange} positiveIsGood hint="Порівняно з минулим місяцем" />
+      <StatCard key="inc" label={`Доходи · ${formatMonthUk(now)}`} value={formatCurrency(monthIncome, base)} icon="Banknote" iconColor="#10b981" change={incomeChange} positiveIsGood hint={samePeriodHint} />
     ),
     show("m_expenses") && (
-      <StatCard key="exp" label={`Витрати · ${formatMonthUk(now)}`} value={formatCurrency(spentThisMonth, base)} icon="Receipt" iconColor="#ef4444" change={change} positiveIsGood={false} hint="Порівняно з минулим місяцем" />
+      <StatCard key="exp" label={`Витрати · ${formatMonthUk(now)}`} value={formatCurrency(spentThisMonth, base)} icon="Receipt" iconColor="#ef4444" change={change} positiveIsGood={false} hint={samePeriodHint} />
     ),
     show("m_balance") && (
       <StatCard key="bal" label="Баланс місяця" value={formatCurrency(balance, base, { sign: true })} icon="Scale" iconColor={balance >= 0 ? "#10b981" : "#ef4444"} hint={savingsRate !== null ? `Норма заощаджень: ${savingsRate.toFixed(0)}%` : "Дохід − витрати за місяць"} />
@@ -238,7 +254,9 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-3.5">
                 {goals.slice(0, 3).map((g) => {
-                  const cur = g.asset_id ? Number(g.asset?.value ?? 0) : Number(g.current_amount);
+                  const cur = g.asset_id
+                    ? convertBetween(Number(g.asset?.value ?? 0), g.asset?.currency ?? g.currency, g.currency, base, rates)
+                    : Number(g.current_amount);
                   const pct = Number(g.target_amount) > 0 ? Math.min((cur / Number(g.target_amount)) * 100, 100) : 0;
                   return (
                     <div key={g.id}>
@@ -270,6 +288,11 @@ export default async function DashboardPage() {
               <CardContent className="space-y-3.5">
                 <p className="text-sm text-fg-muted">
                   Загальний борг: <span className="font-semibold text-danger">{formatCurrency(debtTotal, base)}</span>
+                  {cardDebt > 0 && (
+                    <>
+                      {" "}· мінус на картках: <span className="font-semibold text-danger">{formatCurrency(cardDebt, base)}</span>
+                    </>
+                  )}
                 </p>
                 {credits.slice(0, 3).map((c) => {
                   const total = Number(c.total_amount);
@@ -354,19 +377,33 @@ export default async function DashboardPage() {
 
 function buildInsights({
   spentThisMonth,
-  prevMonth,
+  prevSamePeriod,
+  prevMonthFull,
+  forecast,
+  isLastDay,
+  base,
   topCategory,
 }: {
   spentThisMonth: number;
-  prevMonth: number;
+  prevSamePeriod: number;
+  prevMonthFull: number;
+  forecast: number;
+  isLastDay: boolean;
+  base: string;
   topCategory: { name: string; total: number } | null;
 }): string[] {
   const out: string[] = [];
-  const change = percentChange(spentThisMonth, prevMonth);
-  if (change !== null && prevMonth > 0) {
-    if (change > 5) out.push(`Цього місяця ви витратили на ${Math.abs(change).toFixed(0)}% більше, ніж минулого.`);
-    else if (change < -5) out.push(`Чудово! Витрати на ${Math.abs(change).toFixed(0)}% менші, ніж минулого місяця.`);
-    else out.push("Ваші витрати приблизно на рівні минулого місяця.");
+  // Порівнюємо з тими самими днями минулого місяця (а не з повним місяцем).
+  const change = percentChange(spentThisMonth, prevSamePeriod);
+  if (change !== null && prevSamePeriod > 0) {
+    if (change > 5) out.push(`За ці дні ви витратили на ${Math.abs(change).toFixed(0)}% більше, ніж за ті самі дні минулого місяця.`);
+    else if (change < -5) out.push(`Чудово! За ці дні витрати на ${Math.abs(change).toFixed(0)}% менші, ніж за ті самі дні минулого місяця.`);
+    else out.push("Ваші витрати приблизно на рівні тих самих днів минулого місяця.");
+  }
+  if (!isLastDay && spentThisMonth > 0 && prevMonthFull > 0) {
+    out.push(
+      `У такому темпі до кінця місяця вийде ≈ ${formatCurrency(forecast, base, { compact: true })} (минулого місяця — ${formatCurrency(prevMonthFull, base, { compact: true })}).`,
+    );
   }
   if (topCategory && spentThisMonth > 0) {
     const share = (topCategory.total / spentThisMonth) * 100;

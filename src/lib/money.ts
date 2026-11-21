@@ -55,3 +55,10 @@ export function netWorthTotal(
   const d = credits.reduce((s, x) => s + convert(Number(x.remaining_amount), x.currency, base, rates), 0);
   return round2(a - d);
 }
+
+/** Мінус на картках (використаний кредитний ліміт) у базовій валюті — сума відʼємних балансів активів. */
+export function cardDebtTotal(assets: { value: number; currency: string }[], base: string, rates: Rates): number {
+  return round2(
+    assets.reduce((s, a) => (Number(a.value) < 0 ? s + convert(-Number(a.value), a.currency, base, rates) : s), 0),
+  );
+}

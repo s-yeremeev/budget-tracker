@@ -6,6 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { createAsset, updateAsset, type AssetInput } from "@/lib/actions/assets";
+import { useApp } from "@/components/app/app-shell";
 import { CURRENCIES } from "@/lib/constants";
 import type { Asset, AssetCategory } from "@/lib/types";
 
@@ -21,15 +22,16 @@ export function AssetForm({
   categories,
   asset,
   defaultCategoryId,
-  defaultCurrency = "UAH",
+  defaultCurrency,
   onDone,
 }: Props) {
   const router = useRouter();
+  const { currency: base } = useApp();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(asset?.name ?? "");
   const [value, setValue] = useState(asset ? String(asset.value) : "");
   const [creditLimit, setCreditLimit] = useState(asset?.credit_limit ? String(asset.credit_limit) : "");
-  const [currency, setCurrency] = useState(asset?.currency ?? defaultCurrency);
+  const [currency, setCurrency] = useState(asset?.currency ?? defaultCurrency ?? base); // за замовчуванням — базова валюта
   const [categoryId, setCategoryId] = useState<string | null>(
     asset?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? null,
   );

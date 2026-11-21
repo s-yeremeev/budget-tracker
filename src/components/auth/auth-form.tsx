@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Mail, Lock, User, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -23,7 +24,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   );
   const [info, setInfo] = useState<string | null>(null);
 
-  const redirectTo = params.get("redirect") ?? "/dashboard";
+  const redirectTo = safeRedirectPath(params.get("redirect")); // без open redirect
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
     (typeof window !== "undefined" ? window.location.origin : "");

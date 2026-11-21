@@ -20,14 +20,14 @@ interface Props {
   onDone: () => void;
 }
 
-export function IncomeForm({ income, defaultCurrency = "UAH", onDone }: Props) {
+export function IncomeForm({ income, defaultCurrency, onDone }: Props) {
   const router = useRouter();
-  const { assets } = useApp();
+  const { assets, currency: base } = useApp();
   const [pending, startTransition] = useTransition();
 
   const [amount, setAmount] = useState(income ? String(income.amount) : "");
   const [source, setSource] = useState(income?.source ?? "");
-  const [currency, setCurrency] = useState(income?.currency ?? defaultCurrency);
+  const [currency, setCurrency] = useState(income?.currency ?? defaultCurrency ?? base); // за замовчуванням — базова валюта
   const [date, setDate] = useState(income?.received_at ?? toISODate(new Date()));
   const [comment, setComment] = useState(income?.comment ?? "");
   const [assetId, setAssetId] = useState<string | null>(income?.asset_id ?? null);

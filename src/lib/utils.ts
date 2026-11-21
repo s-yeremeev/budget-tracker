@@ -53,6 +53,13 @@ export function formatDateUk(date: Date | string): string {
   return `${d.getDate()} ${MONTHS_UK[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** "1–21 жовтня" (той самий місяць) або "1 жовтня – 3 листопада". */
+export function formatDayRange(startISO: string, endISO: string): string {
+  const [, sm, sd] = startISO.split("-").map(Number);
+  const [, em, ed] = endISO.split("-").map(Number);
+  return sm === em ? `${sd}–${ed} ${MONTHS_UK[em - 1]}` : `${sd} ${MONTHS_UK[sm - 1]} – ${ed} ${MONTHS_UK[em - 1]}`;
+}
+
 /** "Червень 2026" */
 export function formatMonthUk(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;

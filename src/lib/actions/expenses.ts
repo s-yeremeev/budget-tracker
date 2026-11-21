@@ -150,6 +150,7 @@ export async function updateExpenseCategory(id: string, input: CategoryInput) {
     .eq("id", id);
   if (error) return { error: error.message };
   revalidateAll();
+  revalidatePath("/settings");
   return { error: null };
 }
 
@@ -158,5 +159,6 @@ export async function deleteExpenseCategory(id: string) {
   const { error } = await supabase.from("expense_categories").delete().eq("id", id);
   if (error) return { error: error.message };
   revalidateAll();
+  revalidatePath("/settings");
   return { error: null };
 }

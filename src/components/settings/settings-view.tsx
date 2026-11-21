@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { useTheme } from "@/components/theme/theme-provider";
 import { InstallButton } from "@/components/pwa/install-button";
+import { CategoryManager } from "@/components/settings/category-manager";
 import { createClient } from "@/lib/supabase/client";
 import { updateProfile } from "@/lib/actions/profile";
 import { CURRENCIES } from "@/lib/constants";
@@ -103,6 +104,16 @@ export function SettingsView({ profile }: { profile: Profile | null }) {
           <Button onClick={save} loading={pending}>
             {saved ? <><Check className="h-4 w-4" /> Збережено</> : "Зберегти"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Категорії витрат */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Категорії витрат</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CategoryManager />
         </CardContent>
       </Card>
 

@@ -11,12 +11,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { CreditForm } from "@/components/credits/credit-form";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
+import { cardDebtTotal } from "@/lib/money";
 import { deleteCredit, addCreditPayment } from "@/lib/actions/credits";
 import { formatCurrency, formatDateUk, nextPaymentDate, daysUntil, cn } from "@/lib/utils";
 import type { Credit } from "@/lib/types";
 
 export function CreditsView({ credits }: { credits: Credit[] }) {
-  const { currency: base, rates } = useApp();
+  const { currency: base, rates, assets } = useApp();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Credit | null>(null);
 
@@ -25,6 +26,8 @@ export function CreditsView({ credits }: { credits: Credit[] }) {
     .filter((c) => Number(c.remaining_amount) > 0)
     .reduce((s, c) => s + convert(Number(c.monthly_payment), c.currency, base, rates), 0);
   const currency = base;
+  // Мінус на картках (використаний кредитний ліміт) — теж борг, хоч і не «кредит».
+  const cardDebt = cardDebtTotal(assets, base, rates);
 
   function add() {
     setEditing(null);
@@ -41,13 +44,22 @@ export function CreditsView({ credits }: { credits: Credit[] }) {
       <Card>
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-8">
+            <div className="flex flex-wrap gap-x-8 gap-y-3">
               <div>
-                <p className="text-sm text-fg-muted">Загальний борг</p>
+                <p className="text-sm text-fg-muted">Борг за кредитами</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight text-danger">
                   {formatCurrency(totalDebt, currency)}
                 </p>
               </div>
+              {cardDebt > 0 && (
+                <div>
+                  <p className="text-sm text-fg-muted">Мінус на картках</p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-danger">
+                    {formatCurrency(cardDebt, currency)}
+                  </p>
+                  <p className="text-xs text-fg-subtle">використаний кредитний ліміт</p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-fg-muted">Платежі / міс</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight text-fg">

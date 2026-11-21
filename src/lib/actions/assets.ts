@@ -57,7 +57,10 @@ export async function deleteAsset(id: string) {
   return { error: null };
 }
 
-/** Коригує баланс активу на delta (може бути відʼємним). Не нижче 0. */
+/**
+ * Коригує баланс активу на delta (може бути відʼємним).
+ * Нижче −кредитний ліміт не дозволяє — повертає помилку (раніше мовчки «обрізало»).
+ */
 export async function adjustAsset(id: string, delta: number) {
   const { supabase, userId } = await requireUser();
   if (!delta) return { error: "Вкажіть суму" };
@@ -67,9 +70,10 @@ export async function adjustAsset(id: string, delta: number) {
     .eq("id", id)
     .single();
   if (!asset) return { error: "Актив не знайдено" };
-  // Баланс може йти у мінус до −кредитний ліміт.
+  // Баланс може йти у мінус лише до −кредитний ліміт.
   const floor = -Number(asset.credit_limit ?? 0);
-  const next = Math.max(floor, Number(asset.value) + delta);
+  const next = Math.round((Number(asset.value) + delta) * 100) / 100;
+  if (next < floor) return { error: "Недостатньо коштів на рахунку (з урахуванням кредитного ліміту)." };
   const { error } = await supabase.from("assets").update({ value: next }).eq("id", id);
   if (error) return { error: error.message };
   await recomputeNetWorth(userId);
@@ -100,10 +104,12 @@ export async function transferBetweenAssets(input: {
   const to = assets?.find((a) => a.id === input.to_id);
   if (!from || !to) return { error: "Актив не знайдено" };
 
-  // Джерело може піти у мінус до −кредитний ліміт.
+  // Джерело може піти у мінус лише до −кредитний ліміт. Якщо не вистачає — відмова
+  // (раніше джерело «обрізалось», а на призначення зараховувалась повна сума).
   const fromFloor = -Number(from.credit_limit ?? 0);
-  const fromNext = Math.max(fromFloor, Number(from.value) - input.amount);
-  const toNext = Number(to.value) + input.received;
+  const fromNext = Math.round((Number(from.value) - input.amount) * 100) / 100;
+  if (fromNext < fromFloor) return { error: "На джерелі недостатньо коштів (з урахуванням кредитного ліміту)." };
+  const toNext = Math.round((Number(to.value) + input.received) * 100) / 100;
 
   const [{ error: e1 }, { error: e2 }] = await Promise.all([
     supabase.from("assets").update({ value: fromNext }).eq("id", input.from_id),

@@ -23,15 +23,15 @@ interface Props {
   onDone: () => void;
 }
 
-export function GoalForm({ goal, defaultCurrency = "UAH", onDone }: Props) {
+export function GoalForm({ goal, defaultCurrency, onDone }: Props) {
   const router = useRouter();
-  const { assets } = useApp();
+  const { assets, currency: base } = useApp();
   const [pending, startTransition] = useTransition();
 
   const [name, setName] = useState(goal?.name ?? "");
   const [target, setTarget] = useState(goal ? String(goal.target_amount) : "");
   const [current, setCurrent] = useState(goal ? String(goal.current_amount) : "");
-  const [currency, setCurrency] = useState(goal?.currency ?? defaultCurrency);
+  const [currency, setCurrency] = useState(goal?.currency ?? defaultCurrency ?? base); // за замовчуванням — базова валюта
   const [date, setDate] = useState(goal?.target_date ?? "");
   const [assetId, setAssetId] = useState<string | null>(goal?.asset_id ?? null);
   const [icon, setIcon] = useState(goal?.icon ?? GOAL_ICONS[0]);

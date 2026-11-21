@@ -18,9 +18,9 @@ interface Props {
   onDone: () => void;
 }
 
-export function CreditForm({ credit, defaultCurrency = "UAH", onDone }: Props) {
+export function CreditForm({ credit, defaultCurrency, onDone }: Props) {
   const router = useRouter();
-  const { assets, categories } = useApp();
+  const { assets, categories, currency: base } = useApp();
   const topCategories = categories.filter((c) => !c.parent_id);
   const [pending, startTransition] = useTransition();
 
@@ -33,7 +33,7 @@ export function CreditForm({ credit, defaultCurrency = "UAH", onDone }: Props) {
   const [autoPay, setAutoPay] = useState(credit?.auto_pay ?? false);
   const [payAssetId, setPayAssetId] = useState<string | null>(credit?.payment_asset_id ?? null);
   const [payCategoryId, setPayCategoryId] = useState<string | null>(credit?.payment_category_id ?? null);
-  const [currency, setCurrency] = useState(credit?.currency ?? defaultCurrency);
+  const [currency, setCurrency] = useState(credit?.currency ?? defaultCurrency ?? base); // за замовчуванням — базова валюта
   const [error, setError] = useState<string | null>(null);
 
   function submit(e: React.FormEvent) {

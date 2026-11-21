@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { netWorthTotal, rescheduleNextRun, toAssetAmount } from "@/lib/money";
+import { cardDebtTotal, netWorthTotal, rescheduleNextRun, toAssetAmount } from "@/lib/money";
 
 describe("rescheduleNextRun — редагування / ввімкнення без подвійних і зайвих списань", () => {
   const today = "2026-11-21";
@@ -90,5 +90,20 @@ describe("netWorthTotal — капітал у базовій валюті мін
       { remaining_amount: 100, currency: "USD" },
     ];
     expect(netWorthTotal(assets, credits, "UAH", rates)).toBe(10000 - 2941 - 3000 - 4000);
+  });
+});
+
+describe("cardDebtTotal — мінус на картках", () => {
+  it("сумує лише відʼємні баланси, у базовій валюті", () => {
+    const assets = [
+      { value: 849, currency: "UAH" },
+      { value: -226, currency: "UAH" },
+      { value: -1454, currency: "UAH" },
+      { value: -10, currency: "USD" },
+    ];
+    expect(cardDebtTotal(assets, "UAH", { UAH: 1, USD: 1 / 40 })).toBe(226 + 1454 + 400);
+  });
+  it("без мінусових балансів — 0", () => {
+    expect(cardDebtTotal([{ value: 100, currency: "UAH" }], "UAH", {})).toBe(0);
   });
 });

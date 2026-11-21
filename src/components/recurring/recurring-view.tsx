@@ -156,7 +156,7 @@ function RecurringRow({
         <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all", item.active ? "left-[1.125rem]" : "left-0.5")} />
       </button>
 
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
         {confirming ? (
           <div className="flex items-center gap-1">
             <button onClick={remove} className="rounded-lg bg-danger px-2 py-1 text-xs font-medium text-white">Видалити</button>

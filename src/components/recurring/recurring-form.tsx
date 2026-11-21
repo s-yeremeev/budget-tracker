@@ -18,15 +18,15 @@ interface Props {
   onDone: () => void;
 }
 
-export function RecurringForm({ recurring, defaultCurrency = "UAH", onDone }: Props) {
+export function RecurringForm({ recurring, defaultCurrency, onDone }: Props) {
   const router = useRouter();
-  const { categories, assets } = useApp();
+  const { categories, assets, currency: base } = useApp();
   const topLevel = categories.filter((c) => !c.parent_id);
   const [pending, startTransition] = useTransition();
 
   const [name, setName] = useState(recurring?.name ?? "");
   const [amount, setAmount] = useState(recurring ? String(recurring.amount) : "");
-  const [currency, setCurrency] = useState(recurring?.currency ?? defaultCurrency);
+  const [currency, setCurrency] = useState(recurring?.currency ?? defaultCurrency ?? base); // за замовчуванням — базова валюта
   const [categoryId, setCategoryId] = useState<string | null>(recurring?.category_id ?? topLevel[0]?.id ?? null);
   const [day, setDay] = useState(recurring?.day_of_month ?? 1);
   const [assetId, setAssetId] = useState<string | null>(recurring?.asset_id ?? null);
