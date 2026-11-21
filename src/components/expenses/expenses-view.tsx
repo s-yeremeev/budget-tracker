@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ExpenseList } from "@/components/expenses/expense-list";
 import { useApp } from "@/components/app/app-shell";
 import { convert } from "@/lib/currency";
+import { FILTER_ALL, FILTER_NONE, matchesCategoryFilter, subcategoriesOf } from "@/lib/category-filter";
 import { formatCurrency, formatDateUk, monthBounds, toISODate, cn } from "@/lib/utils";
 import type { ExpenseCategory, ExpenseWithCategory } from "@/lib/types";
 
@@ -29,9 +30,13 @@ export function ExpensesView({
 }) {
   const { openExpense, currency: base, rates } = useApp();
   const [period, setPeriod] = useState<Period>("month");
-  const [categoryId, setCategoryId] = useState<string>("all");
+  const [categoryId, setCategoryId] = useState<string>(FILTER_ALL);
+  const [subcategoryId, setSubcategoryId] = useState<string>(FILTER_ALL);
   const [tag, setTag] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  const subOptions = useMemo(() => subcategoriesOf(categories, categoryId), [categories, categoryId]);
+  const nameById = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
 
   const availableTags = useMemo(() => {
     const set = new Set<string>();
@@ -56,13 +61,16 @@ export function ExpensesView({
     const q = search.trim().toLowerCase();
     return expenses.filter((e) => {
       if (e.spent_at < range.start || e.spent_at > range.end) return false;
-      if (categoryId !== "all" && e.category_id !== categoryId) return false;
+      if (!matchesCategoryFilter(e, categoryId, subcategoryId)) return false;
       if (tag !== "all" && !(e.tags ?? []).includes(tag)) return false;
-      if (q && !(e.comment ?? "").toLowerCase().includes(q) && !(e.category?.name ?? "").toLowerCase().includes(q))
-        return false;
+      if (q) {
+        const subName = e.subcategory_id ? nameById.get(e.subcategory_id) ?? "" : "";
+        const haystack = [e.comment ?? "", e.category?.name ?? "", subName];
+        if (!haystack.some((s) => s.toLowerCase().includes(q))) return false;
+      }
       return true;
     });
-  }, [expenses, range, categoryId, tag, search]);
+  }, [expenses, range, categoryId, subcategoryId, tag, search, nameById]);
 
   const total = filtered.reduce((s, e) => s + convert(Number(e.amount), e.currency, base, rates), 0);
 
@@ -103,8 +111,8 @@ export function ExpensesView({
       </div>
 
       {/* Фільтри */}
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <div className="relative flex-1 sm:min-w-56">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
           <Input
             value={search}
@@ -117,10 +125,14 @@ export function ExpensesView({
           <ListFilter className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-fg-subtle" />
           <Select
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+            onChange={(e) => {
+              setCategoryId(e.target.value);
+              setSubcategoryId(FILTER_ALL);
+            }}
             className="pl-9"
+            aria-label="Категорія"
           >
-            <option value="all">Усі категорії</option>
+            <option value={FILTER_ALL}>Усі категорії</option>
             {categories
               .filter((c) => !c.parent_id)
               .map((c) => (
@@ -130,6 +142,22 @@ export function ExpensesView({
               ))}
           </Select>
         </div>
+        {subOptions.length > 0 && (
+          <Select
+            value={subcategoryId}
+            onChange={(e) => setSubcategoryId(e.target.value)}
+            className="sm:w-52"
+            aria-label="Підкатегорія"
+          >
+            <option value={FILTER_ALL}>Усі підкатегорії</option>
+            <option value={FILTER_NONE}>Без підкатегорії</option>
+            {subOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        )}
         {availableTags.length > 0 && (
           <Select value={tag} onChange={(e) => setTag(e.target.value)} className="sm:w-44">
             <option value="all">Усі теги</option>
