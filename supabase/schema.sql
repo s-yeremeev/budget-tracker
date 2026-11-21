@@ -191,6 +191,16 @@ alter table public.credits add column if not exists payment_asset_id uuid refere
 alter table public.credits add column if not exists payment_category_id uuid references public.expense_categories (id) on delete set null;
 alter table public.credits add column if not exists next_payment date;
 
+-- Сума, фактично списана з активу / зарахована на актив, у ВАЛЮТІ АКТИВУ
+-- (якщо валюта запису інша — за курсом на момент збереження). При зміні/видаленні
+-- запису повертається саме вона. NULL у старих записах = сума як є.
+alter table public.expenses add column if not exists asset_amount numeric(14, 2);
+alter table public.incomes  add column if not exists asset_amount numeric(14, 2);
+
+-- Снапшот Net Worth порахований коректно: у базовій валюті з відніманням боргів.
+-- Старі снапшоти (false) складали суми різних валют як є — графік їх не показує.
+alter table public.net_worth_snapshots add column if not exists converted boolean not null default false;
+
 -- ---------- Індекси ----------
 create index if not exists idx_expenses_user_date   on public.expenses (user_id, spent_at desc);
 create index if not exists idx_expenses_asset       on public.expenses (asset_id);

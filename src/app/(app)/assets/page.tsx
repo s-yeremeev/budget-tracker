@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUserId, getAssetsData, getNetWorthSeries } from "@/lib/queries";
+import { getUserId, getAssetsData, getNetWorthSeries, getCreditsTotal } from "@/lib/queries";
 import { getRates } from "@/lib/server/rates";
 import { getProfile } from "@/lib/server/session";
 import { AssetsView } from "@/components/assets/assets-view";
@@ -12,12 +12,19 @@ export default async function AssetsPage() {
   const base = profile?.base_currency ?? "UAH";
   const rates = await getRates(base);
 
-  const [{ assets, categories, total }, series] = await Promise.all([
+  const [{ assets, categories, total }, series, debtTotal] = await Promise.all([
     getAssetsData(userId, base, rates),
-    getNetWorthSeries(userId),
+    getNetWorthSeries(userId, base),
+    getCreditsTotal(userId, base, rates),
   ]);
 
   return (
-    <AssetsView assets={assets} categories={categories} total={total} series={series} />
+    <AssetsView
+      assets={assets}
+      categories={categories}
+      total={total}
+      debtTotal={debtTotal}
+      series={series}
+    />
   );
 }

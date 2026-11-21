@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { AssetConversionHint } from "@/components/assets/asset-conversion-hint";
 import { useApp } from "@/components/app/app-shell";
 import { createCredit, updateCredit, type CreditInput } from "@/lib/actions/credits";
 import { CURRENCIES } from "@/lib/constants";
@@ -179,6 +180,7 @@ export function CreditForm({ credit, defaultCurrency = "UAH", onDone }: Props) {
                   </option>
                 ))}
               </Select>
+              <AssetConversionHint amount={monthly} currency={currency} assetId={payAssetId} verb="Спишеться" />
             </div>
             <div>
               <Label htmlFor="c-pay-cat">Категорія транзакції (необовʼязково)</Label>

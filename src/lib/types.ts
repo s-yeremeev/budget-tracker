@@ -34,6 +34,8 @@ export interface Expense {
   spent_at: string; // YYYY-MM-DD
   comment: string | null;
   tags: string[];
+  /** Списано з активу у його валюті (null — старі записи: сума як є). */
+  asset_amount?: number | null;
   created_at: string;
 }
 
@@ -107,6 +109,8 @@ export interface Income {
   received_at: string;
   comment: string | null;
   asset_id: string | null;
+  /** Зараховано на актив у його валюті (null — старі записи: сума як є). */
+  asset_amount?: number | null;
   created_at: string;
 }
 
@@ -147,6 +151,8 @@ export interface NetWorthSnapshot {
   snapshot_date: string;
   total_value: number;
   currency: string;
+  /** Порахований у базовій валюті з відніманням боргів (старі — false). */
+  converted?: boolean;
   created_at: string;
 }
 

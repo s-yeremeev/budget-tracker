@@ -28,7 +28,7 @@ export function BudgetView() {
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
   const [data, setData] = useState<Record<string, Row>>({});
-  const [totals, setTotals] = useState({ planned: 0, spent: 0 });
+  const [totals, setTotals] = useState({ planned: 0, spent: 0, inBudget: 0, outOfBudget: 0 });
   const [loading, setLoading] = useState(true);
   const [copying, startCopy] = useTransition();
 
@@ -53,7 +53,12 @@ export function BudgetView() {
       (amount, cur) => convert(amount, cur, currency, rates),
     );
     setData(summary.rows);
-    setTotals({ planned: summary.totalPlanned, spent: summary.totalSpent });
+    setTotals({
+      planned: summary.totalPlanned,
+      spent: summary.totalSpent,
+      inBudget: summary.spentInBudget,
+      outOfBudget: summary.spentOutOfBudget,
+    });
     setLoading(false);
   }, [supabase, period, ref, categories, currency, rates]);
 
@@ -62,7 +67,10 @@ export function BudgetView() {
   }, [load]);
 
   const totalPlanned = totals.planned;
-  const totalSpent = totals.spent;
+  const hasPlan = totalPlanned > 0;
+  // З планом: порівнюємо лише витрати в категоріях з лімітом, решта — «поза бюджетом».
+  // Без плану: просто всі витрати місяця, залишку немає.
+  const totalSpent = hasPlan ? totals.inBudget : totals.spent;
   const remaining = totalPlanned - totalSpent;
 
   // Порядок: категорія, одразу за нею — її підкатегорії.
@@ -114,15 +122,22 @@ export function BudgetView() {
 
           <div className="mt-5 grid grid-cols-3 gap-4">
             <Summary label="Заплановано" value={formatCurrency(totalPlanned, currency)} />
-            <Summary label="Витрачено" value={formatCurrency(totalSpent, currency)} />
+            <Summary label={hasPlan ? "Витрачено в межах плану" : "Витрачено"} value={formatCurrency(totalSpent, currency)} />
             <Summary
               label="Залишок"
-              value={formatCurrency(remaining, currency)}
-              tone={remaining < 0 ? "danger" : "success"}
+              value={hasPlan ? formatCurrency(remaining, currency) : "—"}
+              tone={hasPlan ? (remaining < 0 ? "danger" : "success") : undefined}
             />
           </div>
 
-          {totalPlanned > 0 && (
+          {hasPlan && totals.outOfBudget > 0 && (
+            <p className="mt-3 text-xs text-fg-subtle">
+              Поза бюджетом (категорії без ліміту):{" "}
+              <span className="font-medium text-fg-muted">{formatCurrency(totals.outOfBudget, currency)}</span>
+            </p>
+          )}
+
+          {hasPlan && (
             <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-surface-2">
               <div
                 className={cn(

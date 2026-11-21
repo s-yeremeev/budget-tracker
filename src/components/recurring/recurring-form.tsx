@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { AssetConversionHint } from "@/components/assets/asset-conversion-hint";
 import { useApp } from "@/components/app/app-shell";
 import { createRecurring, updateRecurring, type RecurringInput } from "@/lib/actions/recurring";
 import { CURRENCIES } from "@/lib/constants";
@@ -97,6 +98,7 @@ export function RecurringForm({ recurring, defaultCurrency = "UAH", onDone }: Pr
             <option value="">— не списувати —</option>
             {assets.map((a) => <option key={a.id} value={a.id}>{a.name} · {formatCurrency(Number(a.value), a.currency)}</option>)}
           </Select>
+          <AssetConversionHint amount={amount} currency={currency} assetId={assetId} verb="Спишеться" />
         </div>
       )}
 

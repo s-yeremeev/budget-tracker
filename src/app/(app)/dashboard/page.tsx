@@ -17,7 +17,7 @@ import {
   getMonthComparison,
   getRecentExpenses,
   getExpenses,
-  getMonthBudgetTotal,
+  getMonthBudgetItems,
   getCreditsTotal,
   getMonthIncome,
   getGoals,
@@ -25,6 +25,8 @@ import {
   aggregateByCategory,
 } from "@/lib/queries";
 import { isWidgetOn } from "@/lib/dashboard-widgets";
+import { summarizeMonthBudget } from "@/lib/budget";
+import { convert } from "@/lib/currency";
 import { getRates } from "@/lib/server/rates";
 import {
   formatCurrency,
@@ -55,18 +57,18 @@ export default async function DashboardPage() {
     monthCmp,
     recent,
     monthExpenses,
-    budgetTotal,
+    budgetItems,
     debtTotal,
     incomeCmp,
     goals,
     credits,
   ] = await Promise.all([
     getAssetsData(userId, base, rates),
-    getNetWorthSeries(userId),
+    getNetWorthSeries(userId, base),
     getMonthComparison(userId, now, base, rates),
     getRecentExpenses(userId, 6),
     getExpenses(userId, start, end),
-    getMonthBudgetTotal(userId, now, base, rates),
+    getMonthBudgetItems(userId, now, base, rates),
     getCreditsTotal(userId, base, rates),
     getMonthIncome(userId, now, base, rates),
     getGoals(userId),
@@ -85,6 +87,17 @@ export default async function DashboardPage() {
   const topCategory = byCategory[0] ?? null;
   const spentThisMonth = monthCmp.current;
   const change = percentChange(monthCmp.current, monthCmp.previous);
+
+  // Бюджет: залишок рахуємо лише по категоріях з лімітом, решта — «поза бюджетом».
+  const budget = summarizeMonthBudget(
+    budgetItems,
+    monthExpenses.map((e) => ({
+      category_id: e.category_id,
+      subcategory_id: e.subcategory_id,
+      amount: convert(Number(e.amount), e.currency, base, rates),
+    })),
+  );
+  const budgetLeft = budget.planned - budget.spentInBudget;
 
   const nwData = series.map((s) => ({
     label: new Date(s.date).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" }),
@@ -136,8 +149,8 @@ export default async function DashboardPage() {
       <StatCard key="top" label="Найбільша категорія" value={topCategory ? formatCurrency(topCategory.total, base) : "—"} icon={topCategory?.icon ?? "ChartPie"} iconColor={topCategory?.color ?? "#10b981"} hint={topCategory?.name ?? "Немає витрат цього місяця"} />
     ),
     show("m_budget") &&
-      (budgetTotal > 0 ? (
-        <StatCard key="bud" label="Залишок бюджету" value={formatCurrency(budgetTotal - spentThisMonth, base)} icon="PiggyBank" iconColor={budgetTotal - spentThisMonth < 0 ? "#ef4444" : "#10b981"} hint={`План: ${formatCurrency(budgetTotal, base)}`} />
+      (budget.planned > 0 ? (
+        <StatCard key="bud" label="Залишок бюджету" value={formatCurrency(budgetLeft, base)} icon="PiggyBank" iconColor={budgetLeft < 0 ? "#ef4444" : "#10b981"} hint={`План: ${formatCurrency(budget.planned, base)}${budget.spentOutOfBudget > 0 ? ` · поза бюджетом ${formatCurrency(budget.spentOutOfBudget, base, { compact: true })}` : ""}`} />
       ) : (
         <StatCard key="tx" label="Транзакцій за місяць" value={String(monthExpenses.length)} icon="ListChecks" iconColor="#f59e0b" hint={`Середня: ${monthExpenses.length ? formatCurrency(spentThisMonth / monthExpenses.length, base) : "—"}`} />
       )),

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { nextOccurrence } from "@/lib/server/recurring";
 import { resetDailyProcessing } from "@/lib/server/daily-processing";
+import { rescheduleNextRun } from "@/lib/money";
+import { toISODate } from "@/lib/utils";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -54,7 +56,14 @@ export async function createRecurring(input: RecurringInput) {
 
 export async function updateRecurring(id: string, input: RecurringInput) {
   const { supabase, userId } = await requireUser();
-  const next_run = nextOccurrence(input.day_of_month, new Date());
+  // Не «скидаємо» курсор на сьогодні: вже списаний місяць не спишеться вдруге,
+  // а при ввімкненні після паузи не нарахуються пропущені місяці.
+  const { data: current } = await supabase.from("recurring_expenses").select("next_run").eq("id", id).single();
+  const next_run = rescheduleNextRun(
+    (current as { next_run: string | null } | null)?.next_run ?? null,
+    input.day_of_month,
+    toISODate(new Date()),
+  );
   const { error } = await supabase
     .from("recurring_expenses")
     .update({
@@ -77,7 +86,18 @@ export async function updateRecurring(id: string, input: RecurringInput) {
 
 export async function toggleRecurring(id: string, active: boolean) {
   const { supabase, userId } = await requireUser();
-  const { error } = await supabase.from("recurring_expenses").update({ active }).eq("id", id);
+  const patch: { active: boolean; next_run?: string } = { active };
+  if (active) {
+    // Після паузи — наступна дата від сьогодні, без нарахування пропущених місяців.
+    const { data: current } = await supabase
+      .from("recurring_expenses")
+      .select("next_run, day_of_month")
+      .eq("id", id)
+      .single();
+    const cur = current as { next_run: string | null; day_of_month: number } | null;
+    if (cur) patch.next_run = rescheduleNextRun(cur.next_run, cur.day_of_month, toISODate(new Date()));
+  }
+  const { error } = await supabase.from("recurring_expenses").update(patch).eq("id", id);
   if (error) return { error: error.message };
   if (active) await resetDailyProcessing(supabase, userId);
   revalidateAll();

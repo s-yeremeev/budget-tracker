@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { applyAssetDeltas, recomputeNetWorth } from "@/lib/server/net-worth";
+import { assetAmountsFor } from "@/lib/server/asset-amounts";
+import { omitKey, withColumnFallback } from "@/lib/server/db-compat";
 import { toISODate } from "@/lib/utils";
 
 function clampDay(year: number, monthIndex: number, day: number): number {
@@ -65,7 +67,6 @@ export async function processCreditPayments(userId: string): Promise<boolean> {
         spent_at: run,
         comment: `Платіж по кредиту: ${c.name}`,
       });
-      if (c.payment_asset_id) deltas[c.payment_asset_id] = (deltas[c.payment_asset_id] ?? 0) - charge;
       remaining = Math.max(0, remaining - charge);
       run = addMonth(run, c.payment_day);
       guard++;
@@ -75,7 +76,19 @@ export async function processCreditPayments(userId: string): Promise<boolean> {
 
   if (expenseRows.length === 0) return false;
 
-  await supabase.from("expenses").insert(expenseRows);
+  // Списання з активу — у його валюті (якщо валюта кредиту інша — за курсом).
+  const assetAmounts = await assetAmountsFor(expenseRows as { asset_id: string | null; amount: number; currency: string }[]);
+  expenseRows.forEach((row, i) => {
+    const a = assetAmounts[i];
+    row.asset_amount = a;
+    if (a != null) deltas[row.asset_id as string] = (deltas[row.asset_id as string] ?? 0) - a;
+  });
+
+  await withColumnFallback((withNew) =>
+    supabase
+      .from("expenses")
+      .insert(withNew ? expenseRows : omitKey(expenseRows, "asset_amount")),
+  );
   await Promise.all(
     updates.map((u) =>
       supabase

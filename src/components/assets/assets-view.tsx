@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Minus, Pencil, Trash2, TrendingUp, ArrowRightLeft } from "lucide-react";
+import { Plus, Minus, Pencil, Trash2, TrendingUp, TrendingDown, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,11 +21,14 @@ import type { Asset, AssetCategory } from "@/lib/types";
 interface Props {
   assets: Asset[];
   categories: AssetCategory[];
+  /** Сума активів у базовій валюті. */
   total: number;
+  /** Залишок кредитів у базовій валюті (віднімається від капіталу). */
+  debtTotal: number;
   series: { date: string; value: number }[];
 }
 
-export function AssetsView({ assets, categories, total, series }: Props) {
+export function AssetsView({ assets, categories, total, debtTotal, series }: Props) {
   const router = useRouter();
   const { currency: base, rates } = useApp();
   const [open, setOpen] = useState(false);
@@ -48,7 +51,8 @@ export function AssetsView({ assets, categories, total, series }: Props) {
     label: new Date(s.date).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" }),
     value: s.value,
   }));
-  if (nwData.length === 0) nwData.push({ label: "Сьогодні", value: total });
+  const netWorth = total - debtTotal; // як на дашборді: активи − борги
+  if (nwData.length === 0) nwData.push({ label: "Сьогодні", value: netWorth });
   const nwChange =
     series.length >= 2 ? percentChange(series[series.length - 1].value, series[0].value) : null;
 
@@ -61,11 +65,16 @@ export function AssetsView({ assets, categories, total, series }: Props) {
             <div>
               <p className="text-sm text-fg-muted">Чистий капітал</p>
               <p className="mt-1 text-3xl font-bold tracking-tight text-fg">
-                {formatCurrency(total, base)}
+                {formatCurrency(netWorth, base)}
               </p>
+              {debtTotal > 0 && (
+                <p className="mt-0.5 text-xs text-fg-subtle">
+                  Активи {formatCurrency(total, base, { compact: true })} − борги {formatCurrency(debtTotal, base, { compact: true })}
+                </p>
+              )}
               {nwChange !== null && (
                 <p className={cn("mt-1 flex items-center gap-1 text-sm font-medium", nwChange >= 0 ? "text-success" : "text-danger")}>
-                  <TrendingUp className="h-4 w-4" />
+                  {nwChange >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                   {nwChange >= 0 ? "+" : ""}
                   {nwChange.toFixed(1)}% за період
                 </p>

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { processRecurring } from "@/lib/server/recurring";
 import { processCreditPayments } from "@/lib/server/credit-payments";
+import { recomputeNetWorth } from "@/lib/server/net-worth";
 import { toISODate } from "@/lib/utils";
 import { dailyProcessingAction, type DayMarker } from "@/lib/daily-marker";
 
@@ -34,6 +35,9 @@ export async function runDailyProcessing(userId: string, profile: DayMarker): Pr
   try {
     const recurringChanged = await processRecurring(userId);
     const creditsChanged = await processCreditPayments(userId);
+    // Щоденна точка на графіку капіталу (за актуальним курсом), навіть якщо
+    // за день нічого не змінювалось. Не на кожному запиті — лише раз на день.
+    if (action === "claim" && !recurringChanged && !creditsChanged) await recomputeNetWorth(userId);
     return recurringChanged || creditsChanged;
   } catch (e) {
     // Не вдалося — знімаємо позначку, щоб наступний запит спробував знову.

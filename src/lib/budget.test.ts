@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { computeBudget, plannedTotal } from "@/lib/budget";
+import { computeBudget, plannedTotal, summarizeMonthBudget } from "@/lib/budget";
 
 // Продукти (food) → Супермаркет (market), Ринок (bazaar); Транспорт (transport).
 const categories = [
@@ -39,17 +39,18 @@ describe("computeBudget — витрачено", () => {
   });
 
   it("загальна сума рахує кожну витрату один раз", () => {
-    expect(totalSpent).toBe(720);
+    expect(totalSpent).toBe(720); // усі мають категорію
   });
 
-  it("пропускає витрати без категорії та з невідомою категорією, а невідому підкатегорію ігнорує", () => {
+  it("витрати без категорії — лише в загальну суму (поза бюджетом), не в рядки; невідому підкатегорію ігнорує", () => {
     const r = computeBudget(
       categories,
       [],
       [e(null, null, 10), e("deleted", null, 20), e("food", "deleted-sub", 40)],
       identity,
     );
-    expect(r.totalSpent).toBe(40);
+    expect(r.totalSpent).toBe(70);
+    expect(r.spentOutOfBudget).toBe(70);
     expect(r.rows.food.spent).toBe(40);
     expect(r.rows.market.spent).toBe(0);
   });
@@ -110,5 +111,53 @@ describe("plannedTotal", () => {
 
   it("порожній список — 0", () => {
     expect(plannedTotal([])).toBe(0);
+  });
+});
+
+describe("бюджет у межах лімітів (spentInBudget / spentOutOfBudget)", () => {
+  const exp = [
+    e("food", "market", 300),
+    e("food", "bazaar", 100),
+    e("food", null, 50),
+    e("transport", null, 70),
+  ];
+
+  it("ліміт лише на підкатегорії: у бюджеті тільки її витрати, решта — поза", () => {
+    // як у реальних даних: ліміт лише на «Транспорт › Бензин»
+    const r = computeBudget(categories, [b("market", 1000)], exp, identity);
+    expect(r.spentInBudget).toBe(300);
+    expect(r.spentOutOfBudget).toBe(220);
+    expect(r.totalSpent).toBe(520);
+    expect(r.totalPlanned).toBe(1000);
+  });
+
+  it("ліміт категорії охоплює всі її витрати, разом із підкатегоріями", () => {
+    const r = computeBudget(categories, [b("food", 2000)], exp, identity);
+    expect(r.spentInBudget).toBe(450);
+    expect(r.spentOutOfBudget).toBe(70);
+  });
+
+  it("без лімітів — усе поза бюджетом", () => {
+    const r = computeBudget(categories, [], exp, identity);
+    expect(r.spentInBudget).toBe(0);
+    expect(r.spentOutOfBudget).toBe(520);
+  });
+});
+
+describe("summarizeMonthBudget (дашборд)", () => {
+  it("рахує план і витрати в межах лімітів без списку категорій", () => {
+    const s = summarizeMonthBudget(
+      [
+        { categoryId: "market", parentId: "food", amount: 1000 },
+        { categoryId: "transport", parentId: null, amount: 500 },
+      ],
+      [
+        { category_id: "food", subcategory_id: "market", amount: 300 },
+        { category_id: "food", subcategory_id: null, amount: 50 },
+        { category_id: "transport", subcategory_id: "taxi", amount: 70 },
+        { category_id: null, subcategory_id: null, amount: 5 },
+      ],
+    );
+    expect(s).toEqual({ planned: 1500, spentInBudget: 370, spentOutOfBudget: 55 });
   });
 });

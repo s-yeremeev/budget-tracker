@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { AssetConversionHint } from "@/components/assets/asset-conversion-hint";
 import { useApp } from "@/components/app/app-shell";
 import { createIncome, updateIncome, type IncomeInput } from "@/lib/actions/incomes";
 import { CURRENCIES } from "@/lib/constants";
@@ -112,6 +113,7 @@ export function IncomeForm({ income, defaultCurrency = "UAH", onDone }: Props) {
             ))}
           </Select>
           {assetId && <p className="mt-1 text-xs text-fg-subtle">Баланс активу збільшиться на суму доходу.</p>}
+          <AssetConversionHint amount={amount} currency={currency} assetId={assetId} verb="Зарахується" />
         </div>
       )}
 

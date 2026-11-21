@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { recomputeNetWorth, applyAssetDeltas } from "@/lib/server/net-worth";
+import { assetAmountsFor, appliedAssetAmount } from "@/lib/server/asset-amounts";
+import { withColumnFallback } from "@/lib/server/db-compat";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -40,22 +42,27 @@ export interface ExpenseInput {
 
 export async function createExpense(input: ExpenseInput) {
   const { supabase, userId } = await requireUser();
-  const { error } = await supabase.from("expenses").insert({
-    user_id: userId,
-    category_id: input.category_id,
-    subcategory_id: input.subcategory_id,
-    asset_id: input.asset_id,
-    amount: input.amount,
-    currency: input.currency,
-    spent_at: input.spent_at,
-    comment: input.comment,
-    tags: input.tags,
-  });
+  // Сума у валюті активу (якщо валюта витрати інша — за поточним курсом).
+  const [assetAmount] = await assetAmountsFor([input]);
+  const { error } = await withColumnFallback((withNew) =>
+    supabase.from("expenses").insert({
+      user_id: userId,
+      category_id: input.category_id,
+      subcategory_id: input.subcategory_id,
+      asset_id: input.asset_id,
+      amount: input.amount,
+      currency: input.currency,
+      spent_at: input.spent_at,
+      comment: input.comment,
+      tags: input.tags,
+      ...(withNew ? { asset_amount: assetAmount } : {}),
+    }),
+  );
   if (error) return { error: error.message };
 
-  // Списуємо суму з обраного активу.
-  if (input.asset_id) {
-    await applyAssetDeltas({ [input.asset_id]: -input.amount });
+  // Списуємо суму з обраного активу (у його валюті).
+  if (input.asset_id && assetAmount != null) {
+    await applyAssetDeltas({ [input.asset_id]: -assetAmount });
     await recomputeNetWorth(userId);
   }
   revalidateAll();
@@ -65,31 +72,32 @@ export async function createExpense(input: ExpenseInput) {
 export async function updateExpense(id: string, input: ExpenseInput) {
   const { supabase, userId } = await requireUser();
 
-  // Старий стан — щоб коректно переграти вплив на активи.
-  const { data: old } = await supabase
-    .from("expenses")
-    .select("asset_id, amount")
-    .eq("id", id)
-    .single();
+  // Старий стан — щоб коректно переграти вплив на активи («*» — щоб не впасти,
+  // якщо колонки asset_amount ще немає).
+  const { data: old } = await supabase.from("expenses").select("*").eq("id", id).single();
+  const [assetAmount] = await assetAmountsFor([input]);
 
-  const { error } = await supabase
-    .from("expenses")
-    .update({
-      category_id: input.category_id,
-      subcategory_id: input.subcategory_id,
-      asset_id: input.asset_id,
-      amount: input.amount,
-      currency: input.currency,
-      spent_at: input.spent_at,
-      comment: input.comment,
-      tags: input.tags,
-    })
-    .eq("id", id);
+  const { error } = await withColumnFallback((withNew) =>
+    supabase
+      .from("expenses")
+      .update({
+        category_id: input.category_id,
+        subcategory_id: input.subcategory_id,
+        asset_id: input.asset_id,
+        amount: input.amount,
+        currency: input.currency,
+        spent_at: input.spent_at,
+        comment: input.comment,
+        tags: input.tags,
+        ...(withNew ? { asset_amount: assetAmount } : {}),
+      })
+      .eq("id", id),
+  );
   if (error) return { error: error.message };
 
   const deltas: Record<string, number> = {};
-  if (old) addDelta(deltas, old.asset_id as string | null, Number(old.amount)); // повертаємо старе
-  addDelta(deltas, input.asset_id, -input.amount); // списуємо нове
+  if (old) addDelta(deltas, old.asset_id as string | null, appliedAssetAmount(old)); // повертаємо рівно списане
+  if (assetAmount != null) addDelta(deltas, input.asset_id, -assetAmount); // списуємо нове
   await applyAssetDeltas(deltas);
   if (Object.keys(deltas).length) await recomputeNetWorth(userId);
 
@@ -100,18 +108,14 @@ export async function updateExpense(id: string, input: ExpenseInput) {
 export async function deleteExpense(id: string) {
   const { supabase, userId } = await requireUser();
 
-  const { data: old } = await supabase
-    .from("expenses")
-    .select("asset_id, amount")
-    .eq("id", id)
-    .single();
+  const { data: old } = await supabase.from("expenses").select("*").eq("id", id).single();
 
   const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) return { error: error.message };
 
-  // Повертаємо суму на актив.
+  // Повертаємо на актив рівно ту суму, що була списана.
   if (old?.asset_id) {
-    await applyAssetDeltas({ [old.asset_id as string]: Number(old.amount) });
+    await applyAssetDeltas({ [old.asset_id as string]: appliedAssetAmount(old) });
     await recomputeNetWorth(userId);
   }
   revalidateAll();

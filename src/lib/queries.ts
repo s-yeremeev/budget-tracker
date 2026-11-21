@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { monthBounds, toISODate } from "@/lib/utils";
 import { convert, type Rates } from "@/lib/currency";
-import { plannedTotal } from "@/lib/budget";
+
 import { getCurrentUserId } from "@/lib/server/session";
 import type {
   Asset,
@@ -39,15 +39,23 @@ export async function getAssetsData(userId: string, base: string, rates: Rates) 
   };
 }
 
-/** Серія снапшотів Net Worth для графіка. */
-export async function getNetWorthSeries(userId: string) {
+/**
+ * Серія снапшотів чистого капіталу для графіка — лише коректні (`converted`: у базовій
+ * валюті з відніманням боргів) і в поточній базовій валюті. Старі снапшоти складали
+ * суми різних валют як є, тож вони лишаються в БД, але не показуються.
+ * Якщо міграцію ще не застосовано (колонки немає) — порожньо: графік покаже лише «сьогодні».
+ */
+export async function getNetWorthSeries(userId: string, base: string) {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("net_worth_snapshots")
     .select("snapshot_date, total_value")
     .eq("user_id", userId)
+    .eq("converted", true)
+    .eq("currency", base)
     .order("snapshot_date", { ascending: true })
     .limit(180);
+  if (error) return [];
   return (data ?? []).map((s) => ({
     date: s.snapshot_date as string,
     value: Number(s.total_value),
@@ -140,10 +148,10 @@ export async function getMonthComparison(userId: string, ref: Date, base: string
 }
 
 /**
- * Сума запланованого бюджету на місяць (у базовій валюті).
- * Ліміти підкатегорій не додаються, якщо в батьківської категорії є власний ліміт.
+ * Ліміти бюджету на місяць (у базовій валюті) з батьківською категорією —
+ * для `summarizeMonthBudget` (план без подвійного рахунку + витрати в межах лімітів).
  */
-export async function getMonthBudgetTotal(userId: string, ref: Date, base: string, rates: Rates) {
+export async function getMonthBudgetItems(userId: string, ref: Date, base: string, rates: Rates) {
   const supabase = await createClient();
   const period = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}-01`;
   const { data } = await supabase
@@ -157,13 +165,11 @@ export async function getMonthBudgetTotal(userId: string, ref: Date, base: strin
     currency: string;
     category: { parent_id: string | null } | null;
   }[];
-  return plannedTotal(
-    rows.map((b) => ({
-      categoryId: b.category_id,
-      parentId: b.category?.parent_id ?? null,
-      amount: convert(Number(b.amount), b.currency, base, rates),
-    })),
-  );
+  return rows.map((b) => ({
+    categoryId: b.category_id,
+    parentId: b.category?.parent_id ?? null,
+    amount: convert(Number(b.amount), b.currency, base, rates),
+  }));
 }
 
 /** Доходи за період [start, end] з підтягнутим активом. */

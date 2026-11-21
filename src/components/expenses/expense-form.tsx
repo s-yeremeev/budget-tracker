@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { AssetConversionHint } from "@/components/assets/asset-conversion-hint";
 import { Icon } from "@/components/ui/icon";
 import { TagInput } from "@/components/ui/tag-input";
 import { CategoryCreateInline } from "./category-create-inline";
@@ -245,6 +246,7 @@ export function ExpenseForm({ categories, assets = [], expense, defaultCurrency 
               Баланс активу зменшиться на суму витрати.
             </p>
           )}
+          <AssetConversionHint amount={amount} currency={currency} assetId={assetId} verb="Спишеться" />
         </div>
       )}
 
