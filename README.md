@@ -106,7 +106,7 @@ src/
 └─ lib/
    ├─ supabase/                  # client (browser), server (RSC/actions), middleware (proxy-сесія), config
    ├─ actions/                   # СЕРВЕРНІ ЕКШЕНИ ("use server"): expenses, incomes, recurring, budgets, goals, assets, credits, profile
-   ├─ server/                    # НЕ-"use server" серверні модулі: net-worth, rates, recurring (можуть приймати несеріалізовані аргументи)
+   ├─ server/                    # НЕ-"use server" серверні модулі: session (кешовані user/profile), daily-processing, recurring, credit-payments, net-worth, rates (можуть приймати несеріалізовані аргументи)
    ├─ queries.ts                 # серверні читання/агрегації (приймають base+rates для конвертації)
    ├─ category-filter.ts         # фільтр витрат за категорією/підкатегорією (витрати + аналітика)
    ├─ analytics.ts               # чисті функції аналітики: monthsBack, buildComparison
@@ -132,7 +132,7 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 | Таблиця | Призначення | Ключові поля |
 | --- | --- | --- |
-| `profiles` | 1:1 з `auth.users` | `display_name`, `base_currency` (UAH/USD/EUR), `dashboard_prefs jsonb` |
+| `profiles` | 1:1 з `auth.users` | `display_name`, `base_currency` (UAH/USD/EUR), `dashboard_prefs jsonb`, `auto_processed_on date` (день останнього авто-нарахування) |
 | `expense_categories` | категорії витрат + **підкатегорії** | `parent_id` (self-ref; NULL = верхня), `name`, `icon`, `color` |
 | `expenses` | витрати | `category_id`, `subcategory_id`, `asset_id` (списання), `amount`, `currency`, `spent_at`, `comment`, `tags text[]` |
 | `incomes` | доходи | `source`, `amount`, `currency`, `received_at`, `comment`, `asset_id` (зарахування) |
@@ -175,9 +175,20 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 ## 6. AppShell і клієнтський контекст
 
-`(app)/layout.tsx` (серверний) робить: auth-guard → `processRecurring(userId)` →
-паралельно тягне `profile`, `expense_categories`, `assets`, рахує `base` і
+`(app)/layout.tsx` (серверний) робить: auth-guard (`getCurrentUserId`) → паралельно
+тягне `profile`, `expense_categories`, `assets` → **раз на день** авто-нарахування
+(`runDailyProcessing`, див. §8; якщо щось згенеровано — перечитує активи) →
 `getRates(base)` → передає в **`AppShell`** (клієнтський).
+
+**Дані запиту — один раз на рендер** (`lib/server/session.ts`, React `cache`). Layout і
+сторінка рендеряться **паралельно**, тож спільні дані беруться через кешовані функції:
+- `getCurrentUserId()` — `auth.getClaims()`: з асиметричним JWT-ключем перевіряє токен
+  локально (JWKS кешується на 10 хв), з симетричним — сам звертається до Auth; фолбек на
+  `getUser()`. Повну перевірку сесії й оновлення токена робить **proxy** на кожному запиті.
+- `getProfile(userId)` — профіль (layout, дашборд, активи, налаштування — один запит).
+- `getRates(base)` — курси (ще й Next fetch-кеш на 6 год).
+У сторінках бери id через `getUserId()` (`queries.ts`) або `getCurrentUserId()`, профіль —
+через `getProfile()`, а **не** окремими запитами.
 
 `AppShell` надає React-контекст `useApp()`:
 ```ts
@@ -240,11 +251,22 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 
 ### Повторювані витрати (підписки)
 - Шаблон: назва, сума, `day_of_month`, категорія, опц. актив, `active`.
-- **Ліниве нарахування:** `lib/server/recurring.ts` → `processRecurring(userId)`
-  викликається у `(app)/layout.tsx` на кожному заході. Генерує реальні витрати за
-  всі настали дати (догенеровує пропущені місяці), просуває `next_run`, застосовує
-  списання з активу. Без зовнішнього cron. **Не викликає `revalidatePath`** (бо
-  працює під час рендера) — свіжі дані видно одразу, бо layout рендериться до сторінки.
+- **Ліниве нарахування:** `lib/server/recurring.ts` → `processRecurring(userId)`.
+  Генерує реальні витрати за всі настали дати (догенеровує пропущені місяці), просуває
+  `next_run`, застосовує списання з активу. Без зовнішнього cron. **Не викликає
+  `revalidatePath`** (працює під час рендера).
+- **Раз на день** (`lib/server/daily-processing.ts` → `runDailyProcessing`, разом з
+  авто-платежами кредитів): позначка `profiles.auto_processed_on` (UTC-дата).
+  - Перший запит дня атомарно «забирає» день (`UPDATE … WHERE auto_processed_on IS NULL`
+    або `< today` — лише один з паралельних запитів отримає рядок) і запускає нарахування;
+    решта запитів дня перевірок не роблять.
+  - Створення/зміна/увімкнення шаблону (і кредиту з `auto_pay`) скидає позначку
+    (`resetDailyProcessing`) — нарахування на сьогодні з'явиться одразу.
+  - Помилка нарахування знімає позначку (повтор наступним запитом); помилка самої
+    позначки або відсутність колонки (міграцію не застосовано) → обробка на кожному
+    запиті, як раніше.
+  - Layout і сторінка рендеряться паралельно: у перший запит дня сторінка може ще не
+    показати щойно згенеровані витрати — вони з'являться з наступним переходом.
 
 ### Бюджет
 - Місячні ліміти за категоріями **і підкатегоріями** (`period` = 1-ше число).
@@ -280,7 +302,8 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
 - Залишок зменшується платежами (`addCreditPayment`). `payment_day` (опц.) → найближча
   дата на картці + дашборд-віджет «Найближчі платежі» (`nextPaymentDate`/`daysUntil`).
 - **Авто-списання (`auto_pay`):** `lib/server/credit-payments.ts` →
-  `processCreditPayments(userId)` у `(app)/layout.tsx`. У день платежу генерує
+  `processCreditPayments(userId)` — раз на день разом із підписками (див. «Повторювані
+  витрати»). У день платежу генерує
   витрату-платіж (`payment_category_id`), списує з `payment_asset_id`, зменшує
   `remaining_amount`, просуває `next_payment` (догенеровує пропущені місяці).
 - Загальний борг віднімається від Net Worth.
@@ -340,6 +363,13 @@ scripts/generate-icons.js        # генератор PWA-іконок (без �
   створюються **без** generic; типобезпека — через ручні інтерфейси + касти
   (`as unknown as T[]`) у `queries.ts`.
 - **proxy `matcher`** має виключати `manifest.webmanifest` і `sw.js`.
+- **Мемоізація `fetch` у рендері:** Next запамʼятовує однакові GET-запити в межах рендера
+  (supabase-js ходить через `fetch`). Код, що **пише і перечитує** (баланси активів,
+  Net Worth, авто-нарахування), отримував застарілі дані: друге списання з того самого
+  активу перетирало перше. Для такого коду — `createClient({ fresh: true })` (власний
+  `AbortSignal` вимикає мемоізацію). У звичайних читаннях мемоізація корисна — лишай.
+- **`or(...)` у PATCH** (PostgREST 12) по `auto_processed_on` падав з 42703 «column does not
+  exist» — для атомарних умовних оновлень використовуй прості фільтри (`is`, `lt`, `eq`).
 - **`new Date()`** у коді застосунку — ОК (обмеження стосувалось лише Workflow-скриптів).
 
 ---
